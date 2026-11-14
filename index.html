@@ -211,7 +211,7 @@ const state = {
   date: dateKey(),
   rep: { range: "week", anchor: dateKey() },
   profile: Object.assign({}, DEFAULT_PROFILE, store.get(K.profile, {})),
-  settings: Object.assign({ key: "", model: "gemini-2.5-flash", models: [] }, store.get(K.settings, {})),
+  settings: loadSettings(),
   log: store.get(K.log, {}),   // { date: [ {id,time,thumb,items:[{name,portion,kcal,p,f,c,fib,sug,na}]} ] }
   ex: store.get(K.ex, {}),     // { date: [ {id,time,type,name,minutes,kcal,detail,thumb} ] }
   draft: null,
@@ -264,11 +264,18 @@ function gemError(status, msg) {
   const base = gemErrorBase(status, msg || "");
   return base + (msg ? ` [${status}] ${String(msg).slice(0, 250)}` : ` [${status}]`);
 }
-function pickModel(names) {
-  const ok = names.filter(n => /flash/i.test(n) && !/lite|image|tts|live|audio|thinking|8b|exp/i.test(n));
-  const ver = n => { const m = n.match(/gemini-(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
-  ok.sort((a, b) => ver(b) - ver(a) || a.localeCompare(b));
-  return ok[0] || names.find(n => /flash/i.test(n)) || names[0] || "";
+/* โมเดลที่ทดสอบแล้วว่าอ่านรูป+ตอบ JSON ภาษาไทยได้ (เรียงตามความชอบ) — ถ้าตัวแรกยุ่ง/ถูกยกเลิก แอปจะลองตัวถัดไปเอง */
+function modelPrefs() { return ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-3.6-flash"]; }
+function loadSettings() {
+  const s = Object.assign({ key: "", model: "", models: [] }, store.get(K.settings, {}));
+  if (s.v !== 3 || !s.model) { s.model = modelPrefs()[0]; s.v = 3; }  // รีเซ็ตโมเดลเก่าที่ถูกยกเลิก
+  return s;
+}
+function candidateModels(names, cur) {
+  const bad = /image|tts|live|audio|omni|transcribe|embed|robotics|computer|antigravity|research|nano|lyria|gemma|latest|customtools|thinking|8b|exp/i;
+  const pref = modelPrefs().filter(n => names.includes(n));
+  const rest = names.filter(n => /gemini/i.test(n) && /flash/i.test(n) && !bad.test(n) && !pref.includes(n) && !/^gemini-2\./.test(n) && !/3\.5-flash-lite/.test(n));
+  return [...pref, ...rest].filter((n, i, a) => n !== cur && a.indexOf(n) === i).slice(0, 3);
 }
 function gemErrorBase(status, msg) {
   msg = msg || "";
@@ -281,26 +288,41 @@ function gemErrorBase(status, msg) {
 }
 async function gemFetch(path, init) {
   if (!state.settings.key) throw new Error("ยังไม่ได้ใส่ Gemini API key (ไปที่แท็บโปรไฟล์)");
+  const { timeoutMs, ...rest } = init || {};
+  const ctl = new AbortController(), timer = timeoutMs ? setTimeout(() => ctl.abort(), timeoutMs) : null;
   let res;
   try {
-    res = await fetch(GEM + path, Object.assign({}, init, { headers: Object.assign({ "x-goog-api-key": state.settings.key, "Content-Type": "application/json" }, init && init.headers) }));
-  } catch (e) { throw new Error("เชื่อมต่อเครือข่ายไม่ได้ (หรือเครือข่ายบล็อก Google AI)"); }
+    res = await fetch(GEM + path, Object.assign({}, rest, { signal: ctl.signal, headers: Object.assign({ "x-goog-api-key": state.settings.key, "Content-Type": "application/json" }, rest.headers) }));
+  } catch (e) {
+    if (ctl.signal.aborted) { const err = new Error("โมเดลตอบช้าเกินไป (timeout)"); err.status = 599; throw err; }
+    throw new Error("เชื่อมต่อเครือข่ายไม่ได้ (หรือเครือข่ายบล็อก Google AI)");
+  } finally { clearTimeout(timer); }
   let data = null; try { data = await res.json(); } catch (e) {}
   if (!res.ok) { const err = new Error(gemError(res.status, data && data.error && data.error.message)); err.status = res.status; throw err; }
   return data;
 }
 async function gemJSON(parts, schema) {
   const body = { contents: [{ role: "user", parts }], generationConfig: { temperature: 0.2, responseMimeType: "application/json", responseSchema: schema } };
-  const call = m => gemFetch(`/models/${encodeURIComponent(m)}:generateContent`, { method: "POST", body: JSON.stringify(body) });
+  const call = m => gemFetch(`/models/${encodeURIComponent(m)}:generateContent`, { method: "POST", body: JSON.stringify(body), timeoutMs: 30000 });
+  // โมเดลหาไม่เจอ (404) / โควตาเต็ม (429) / เซิร์ฟเวอร์ยุ่งหรือค้าง (5xx, timeout) → ลองโมเดลสำรองตามลำดับทันที
+  const moveOn = e => e.status === 404 || e.status === 429 || e.status >= 500;
+  const cur = state.settings.model || modelPrefs()[0];
   let data;
-  try { data = await call(state.settings.model || "gemini-2.5-flash"); }
+  try { data = await call(cur); }
   catch (e) {
-    if (e.status !== 404) throw e;
-    const names = await loadModels(), best = pickModel(names);
-    if (!best || best === state.settings.model) throw e;
-    data = await call(best);
-    state.settings.model = best; state.settings.models = names; store.set(K.settings, state.settings);
-    toast("เปลี่ยนไปใช้โมเดล " + best + " อัตโนมัติ");
+    if (!moveOn(e)) throw e;
+    const names = await loadModels();
+    let lastErr = e;
+    for (const m of candidateModels(names, cur)) {
+      try {
+        data = await call(m);
+        if (e.status === 404) state.settings.model = m;  // โมเดลเดิมใช้ไม่ได้จริง → จำตัวใหม่ไว้
+        state.settings.models = names; store.set(K.settings, state.settings);
+        toast("ใช้โมเดลสำรอง " + m + (e.status === 404 ? " (บันทึกเป็นโมเดลหลักแล้ว)" : " ชั่วคราว"));
+        break;
+      } catch (e2) { lastErr = e2; if (!moveOn(e2)) throw e2; }
+    }
+    if (!data) throw lastErr;
   }
   const cand = data && data.candidates && data.candidates[0];
   if (!cand) throw new Error("Gemini ไม่ตอบกลับ" + (data && data.promptFeedback && data.promptFeedback.blockReason ? " (ถูกบล็อก: " + data.promptFeedback.blockReason + ")" : ""));
