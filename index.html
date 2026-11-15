@@ -46,6 +46,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .btn.ghost{background:transparent}
 .btn.block{display:block;width:100%}
 .btn.small{min-height:36px;padding:6px 12px}
+.btn.left{text-align:left}
 .btn:disabled{opacity:.55;cursor:not-allowed}
 .icon-btn{border:none;background:transparent;font-size:1.3rem;padding:8px;min-width:44px;min-height:44px;border-radius:10px}
 .icon-btn:hover{background:var(--surface2)}
@@ -54,13 +55,10 @@ input,select,textarea{
   font:inherit;color:var(--text);background:var(--surface2);border:1px solid var(--line);
   border-radius:10px;padding:10px 12px;width:100%;min-height:44px;margin-top:4px;
 }
-input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input:focus,select:focus,textarea:focus,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 textarea{resize:vertical;min-height:70px}
 input[type=checkbox]{width:22px;height:22px;min-height:22px;margin:0;padding:0;flex:none;accent-color:var(--accent)}
 label.check{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:.9rem;min-height:44px}
-.coach p{margin:8px 0}
-.coach ul{margin:2px 0 8px;padding-left:20px}
-.coach li{margin:3px 0;font-size:.93rem}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
@@ -95,13 +93,25 @@ nav .tab.on{color:var(--accent);font-weight:700}
 .item{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px}
 .item label{font-size:.72rem;color:var(--muted)}
 .item .grid4 input,.item .grid3 input{padding:8px 6px;text-align:center}
-.preview{width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:10px}
+.preview{width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin:10px 0 0}
+.pstrip{display:flex;gap:8px;overflow-x:auto;margin-top:10px;padding-bottom:4px}
+.pimg{position:relative;flex:none}
+.pimg img{width:120px;height:120px;object-fit:cover;border-radius:12px;display:block}
+.pimg button{position:absolute;top:4px;right:4px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:.9rem}
 .spinner{display:inline-block;width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-3px;margin-right:8px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(110px + env(safe-area-inset-bottom));background:var(--text);color:var(--bg);padding:10px 16px;border-radius:12px;z-index:60;max-width:90%;font-size:.9rem}
 .empty{text-align:center;padding:26px 10px;color:var(--muted)}
 .hidden{display:none!important}
 .sub{font-size:.8rem;color:var(--muted);margin:14px 0 6px;font-weight:600}
+.mhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:14px 2px 6px}
+.coach p{margin:8px 0}
+.coach ul{margin:2px 0 8px;padding-left:20px}
+.coach li{margin:3px 0;font-size:.93rem}
+details{background:var(--surface);border:1px solid var(--line);border-radius:12px;margin-top:8px;padding:0 10px}
+details summary{cursor:pointer;padding:11px 2px;font-weight:600;font-size:.92rem;min-height:44px}
+.favrow{display:flex;gap:4px;align-items:center;margin-bottom:8px}
+.favrow .btn{line-height:1.3}
 /* reports */
 .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--surface2);border-radius:12px;padding:4px;margin-bottom:12px}
 .seg button{border:none;background:transparent;padding:8px;border-radius:9px;min-height:40px}
@@ -115,6 +125,7 @@ nav .tab.on{color:var(--accent);font-weight:700}
 .drow>:first-child{text-align:left}
 .drow.head{color:var(--muted);font-size:.74rem;cursor:default}
 .drow.today{font-weight:700}
+.brow{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);font-size:.88rem;font-variant-numeric:tabular-nums}
 </style>
 </head>
 <body>
@@ -129,7 +140,7 @@ nav .tab.on{color:var(--accent);font-weight:700}
 </nav>
 <div id="modal"></div>
 <input type="file" id="fileCam" accept="image/*" capture="environment" class="hidden">
-<input type="file" id="fileLib" accept="image/*" class="hidden">
+<input type="file" id="fileLib" accept="image/*" multiple class="hidden">
 <input type="file" id="fileImp" accept="application/json,.json" class="hidden">
 
 <script>
@@ -140,6 +151,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 const r0 = n => Math.round(n);
 const r1 = n => Math.round(n * 10) / 10;
+const sgn = v => (v > 0 ? "+" : "") + r1(v);
 const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
 const pad = n => String(n).padStart(2, "0");
 const dateKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -147,11 +159,13 @@ const timeNow = () => { const d = new Date(); return `${pad(d.getHours())}:${pad
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const parseKey = key => { const [y, m, d] = key.split("-").map(Number); return new Date(y, m - 1, d); };
 const shiftDate = (key, delta) => { const dt = parseKey(key); return dateKey(new Date(dt.getFullYear(), dt.getMonth(), dt.getDate() + delta)); };
+const byTime = (a, b) => (a.time || "").localeCompare(b.time || "");
 const DAYS = ["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"];
 const DAYS_S = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 const MONS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 const MONS_L = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 function fmtDate(key) { const dt = parseKey(key); return `${DAYS[dt.getDay()]} ${dt.getDate()} ${MONS[dt.getMonth()]} ${dt.getFullYear() + 543}`; }
+const fmtShort = key => { const dt = parseKey(key); return `${dt.getDate()} ${MONS[dt.getMonth()]}`; };
 let toastTimer;
 function toast(msg) {
   document.querySelectorAll(".toast").forEach(e => e.remove());
@@ -160,7 +174,7 @@ function toast(msg) {
 }
 
 /* ============ store (localStorage, with in-memory fallback) ============ */
-const K = { profile: "foodapp.profile", settings: "foodapp.settings", log: "foodapp.log", ex: "foodapp.ex", coach: "foodapp.coach" };
+const K = { profile: "foodapp.profile", settings: "foodapp.settings", log: "foodapp.log", ex: "foodapp.ex", coach: "foodapp.coach", body: "foodapp.body", fav: "foodapp.fav" };
 const mem = {};
 const store = {
   get(k, d) {
@@ -217,23 +231,36 @@ const state = {
   rep: { range: "week", anchor: dateKey() },
   profile: Object.assign({}, DEFAULT_PROFILE, store.get(K.profile, {})),
   settings: loadSettings(),
-  log: store.get(K.log, {}),   // { date: [ {id,time,thumb,items:[{name,portion,kcal,p,f,c,fib,sug,na}]} ] }
-  ex: store.get(K.ex, {}),     // { date: [ {id,time,type,name,minutes,kcal,detail,thumb} ] }
-  coach: store.get(K.coach, {}), // { date: {sig,at,headline,score,good[],improve[],next} }
-  coachBusy: null, coachTok: 0, coachErr: "", coachErrDate: "",
+  log: store.get(K.log, {}),     // { date: [ {id,time,type,thumb,items:[{name,portion,kcal,p,f,c,fib,sug,na}]} ] }
+  ex: store.get(K.ex, {}),       // { date: [ {id,time,type,name,minutes,kcal,detail,thumb} ] }
+  coach: store.get(K.coach, {}), // { "YYYY-MM-DD" | "week:YYYY-MM-DD" | "month:YYYY-MM-DD": {sig,at,headline,score,good[],improve[],next} }
+  body: store.get(K.body, {}),   // { date: {w, bf} }
+  fav: store.get(K.fav, []),     // [ {id,name,items} ]
+  coachRun: {}, coachErrs: {}, coachSeq: 0,
   draft: null,
   pickMode: "food"
 };
 const zeroT = () => ({ kcal: 0, p: 0, f: 0, c: 0, fib: 0, sug: 0, na: 0 });
 const addT = (a, b) => ({ kcal: a.kcal + b.kcal, p: a.p + b.p, f: a.f + b.f, c: a.c + b.c, fib: a.fib + b.fib, sug: a.sug + b.sug, na: a.na + b.na });
-const mealTotals = m => m.items.reduce((a, i) => addT(a, { kcal: num(i.kcal), p: num(i.p), f: num(i.f), c: num(i.c), fib: num(i.fib), sug: num(i.sug), na: num(i.na) }), zeroT());
+const itemsTotals = items => items.reduce((a, i) => addT(a, { kcal: num(i.kcal), p: num(i.p), f: num(i.f), c: num(i.c), fib: num(i.fib), sug: num(i.sug), na: num(i.na) }), zeroT());
+const mealTotals = m => itemsTotals(m.items);
 const dayTotals = d => (state.log[d] || []).reduce((a, m) => addT(a, mealTotals(m)), zeroT());
 const exTotals = d => (state.ex[d] || []).reduce((a, e) => {
   a.n++; a.min += num(e.minutes); a.kcal += num(e.kcal);
   if (e.type === "cardio") { a.cn++; a.cmin += num(e.minutes); } else if (e.type === "weights") { a.wn++; a.wmin += num(e.minutes); }
   return a;
 }, { n: 0, min: 0, kcal: 0, cn: 0, cmin: 0, wn: 0, wmin: 0 });
+const hasData = d => (state.log[d] || []).length > 0 || (state.ex[d] || []).length > 0;
 const EXTYPE = { cardio: ["🏃", "คาร์ดิโอ"], weights: ["🏋️", "เวทเทรนนิ่ง"], other: ["⚡", "อื่นๆ"] };
+/* meal types */
+const MTYPES = [["b", "🌅", "เช้า"], ["l", "☀️", "กลางวัน"], ["d", "🌙", "เย็น"], ["s", "🍪", "ของว่าง"]];
+const MT = Object.fromEntries(MTYPES.map(x => [x[0], x]));
+function typeFromTime(t) {
+  const [h, m] = String(t || "12:00").split(":").map(Number), x = (h || 0) * 60 + (m || 0);
+  return x >= 240 && x < 630 ? "b" : x >= 630 && x < 900 ? "l" : x >= 1020 && x < 1320 ? "d" : "s";
+}
+const mealType = m => MT[m.type] ? m.type : typeFromTime(m.time);
+const mealName = m => m.items.map(i => i.name).filter(Boolean).join(", ") || "อาหาร";
 
 /* persistence — if storage is full, drop thumbnails of entries older than 14 days and retry */
 function compactThumbs() {
@@ -264,6 +291,7 @@ function scaled(img, maxSide, q) {
   c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
   return c.toDataURL("image/jpeg", q);
 }
+const MAX_IMG = 4;
 
 /* ============ Gemini ============ */
 const GEM = "https://generativelanguage.googleapis.com/v1beta";
@@ -309,7 +337,7 @@ async function gemFetch(path, init) {
   return data;
 }
 async function gemJSON(parts, schema) {
-  const body = { contents: [{ role: "user", parts }], generationConfig: { temperature: 0.2, responseMimeType: "application/json", responseSchema: schema } };
+  const body = { contents: [{ role: "user", parts }], generationConfig: { temperature: 0.1, responseMimeType: "application/json", responseSchema: schema } };
   const call = m => gemFetch(`/models/${encodeURIComponent(m)}:generateContent`, { method: "POST", body: JSON.stringify(body), timeoutMs: 30000 });
   // โมเดลหาไม่เจอ (404) / โควตาเต็ม (429) / เซิร์ฟเวอร์ยุ่งหรือค้าง (5xx, timeout) → ลองโมเดลสำรองตามลำดับทันที
   const moveOn = e => e.status === 404 || e.status === 429 || e.status >= 500;
@@ -339,41 +367,80 @@ async function gemJSON(parts, schema) {
 }
 const imgPart = dataUrl => ({ inlineData: { mimeType: "image/jpeg", data: dataUrl.split(",")[1] } });
 const N = { type: "NUMBER" }, S = { type: "STRING" };
-
-async function analyzeFood(dataUrl, hint) {
-  const prompt =
-    "คุณเป็นนักโภชนาการ วิเคราะห์อาหารจากรูป" + (dataUrl ? "" : "(ไม่มีรูป ให้ประเมินจากคำอธิบายของผู้ใช้)") +
-    " แยกเป็นรายการอาหาร/เครื่องดื่มแต่ละอย่างที่เห็น ประเมินปริมาณที่เห็นจริงในจาน (ไม่ใช่ต่อ 100 กรัม) " +
-    "ตั้งชื่อเป็นภาษาไทย ระบุ portion เป็นข้อความสั้นๆ เช่น '1 จาน ≈ 350 g' " +
-    "ให้ kcal สอดคล้องกับมาโคร (โปรตีน×4 + คาร์บ×4 + ไขมัน×9) หากมีน้ำมัน/ซอส/น้ำตาลซ่อนอยู่ให้รวมไว้ด้วย " +
-    "และประเมินใยอาหาร (กรัม) น้ำตาล (กรัม) โซเดียม (มิลลิกรัม) ต่อรายการ " +
-    "ถ้าผู้ใช้ให้คำอธิบายเพิ่ม ให้ยึดคำอธิบายนั้นเป็นหลัก" + (hint ? "\nคำอธิบายจากผู้ใช้: " + hint : "");
-  const parts = [{ text: prompt }]; if (dataUrl) parts.push(imgPart(dataUrl));
-  const obj = await gemJSON(parts, {
-    type: "OBJECT",
-    properties: {
-      items: { type: "ARRAY", items: { type: "OBJECT", properties: { name: S, portion: S, kcal: N, protein_g: N, fat_g: N, carb_g: N, fiber_g: N, sugar_g: N, sodium_mg: N },
-        required: ["name", "portion", "kcal", "protein_g", "fat_g", "carb_g", "fiber_g", "sugar_g", "sodium_mg"] } },
-      confidence: S, notes: S
-    }, required: ["items"]
-  });
-  const items = (Array.isArray(obj.items) ? obj.items : []).map(i => ({
-    name: String(i.name || "").trim(), portion: String(i.portion || "").trim(),
-    kcal: r0(num(i.kcal)), p: r1(num(i.protein_g)), f: r1(num(i.fat_g)), c: r1(num(i.carb_g)),
-    fib: r1(num(i.fiber_g)), sug: r1(num(i.sugar_g)), na: r0(num(i.sodium_mg))
-  })).filter(i => i.name || i.kcal);
-  if (!items.length) throw new Error("ไม่พบอาหารในรูป ลองใส่คำอธิบายเพิ่มหรือกรอกเอง");
-  return { items, confidence: obj.confidence || "", notes: obj.notes || "" };
+const FOOD_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    items: { type: "ARRAY", items: { type: "OBJECT", properties: { name: S, portion: S, weight_g: N, kcal: N, kcal_low: N, kcal_high: N, protein_g: N, fat_g: N, carb_g: N, fiber_g: N, sugar_g: N, sodium_mg: N },
+      required: ["name", "portion", "weight_g", "kcal", "kcal_low", "kcal_high", "protein_g", "fat_g", "carb_g", "fiber_g", "sugar_g", "sodium_mg"] } },
+    confidence: S, notes: S
+  }, required: ["items", "confidence", "notes"]
+};
+function foodPrompt(nImg, hint) {
+  return [
+    "คุณเป็นนักกำหนดอาหารที่ประเมินโภชนาการ" + (nImg ? "จากรูปอาหาร" : "จากคำอธิบายของผู้ใช้ (ไม่มีรูป)") + "อย่างเป็นกลางและสม่ำเสมอ เป้าหมายคือค่าที่ใกล้ความจริงที่สุด ไม่ใช่ค่าที่ดูดีหรือค่าที่เผื่อไว้",
+    nImg > 1 ? `มี ${nImg} รูป ทั้งหมดเป็นมื้อเดียวกัน อาจเป็นคนละจาน หรือเป็นคนละมุมของจานเดียวกัน ให้ใช้ทุกรูปช่วยประเมินปริมาณ และห้ามนับอาหารจานเดียวกันซ้ำ` : "",
+    "วิธีทำ (คิดตามลำดับ):",
+    "1) แยกสิ่งที่เห็นจริง: อาหารจานเดียวรวมเป็น 1 รายการได้ แต่เครื่องดื่ม ของหวาน และกับข้าวคนละจาน ให้แยกเป็นรายการของตัวเอง",
+    "2) ประเมินน้ำหนักเป็นกรัม โดยเทียบกับขนาดจาน ชาม ช้อน มือ หรือวัตถุอื่นในรูป",
+    "3) คำนวณจากค่าโภชนาการมาตรฐานต่อ 100 กรัมของอาหารชนิดนั้น แล้วคูณตามน้ำหนักที่ประเมิน (ตอบเป็นค่าของปริมาณที่เห็น ไม่ใช่ต่อ 100 กรัม)",
+    "หลักการประเมินแบบค่ากลาง:",
+    "- ใช้ปริมาณและวิธีปรุงแบบที่พบทั่วไปสำหรับสิ่งที่เห็น ไม่สมมติกรณีดีที่สุด (แทบไม่ใช้น้ำมัน เนื้อไม่ติดมัน) และไม่สมมติกรณีแย่ที่สุด (น้ำมันท่วม ปริมาณพิเศษ)",
+    "- ถ้าลังเลระหว่างสองค่า ให้เลือกค่ากึ่งกลาง ห้ามปัดขึ้นเพื่อเผื่อไว้ และห้ามปัดลงเพื่อให้ดูดี",
+    "- น้ำมัน น้ำตาล ซอส กะทิ ที่มองไม่เห็น ให้ใส่ในปริมาณปกติของเมนูนั้น (เช่น อาหารผัดร้านตามสั่งใช้น้ำมันราว 2–3 ช้อนชาต่อจาน ของทอดอมน้ำมันมากกว่านั้น) ไม่ใส่เกินกว่าที่เมนูนั้นใช้ตามปกติ",
+    "- ตัวอ้างอิง: ข้าวสวย 1 ทัพพี ≈ 60 g ≈ 80 kcal ; ข้าวในจานร้านตามสั่งทั่วไป ≈ 180–250 g ; น้ำมัน 1 ช้อนชา ≈ 45 kcal ; น้ำตาล 1 ช้อนชา ≈ 16 kcal",
+    "- นับเฉพาะส่วนที่กินได้และที่เห็นในรูป ไม่เดาว่ามีของที่ไม่เห็น และไม่เดาว่ากินเหลือ เว้นแต่ผู้ใช้บอก",
+    "- kcal ต้องสอดคล้องกับมาโคร (โปรตีน×4 + คาร์บ×4 + ไขมัน×9) ยกเว้นเครื่องดื่มแอลกอฮอล์",
+    "ผลลัพธ์ต่อรายการ: name = ชื่อภาษาไทย ; portion = ข้อความสั้น เช่น '1 จาน ≈ 350 g' ; weight_g = น้ำหนักที่ประเมิน ; kcal = ค่ากลาง ; " +
+    "kcal_low และ kcal_high = ช่วงที่เป็นไปได้อย่างสมเหตุสมผล (ปกติ ±10–25% ของค่ากลาง กว้างขึ้นถ้ามองเห็นไม่ชัด) ; protein_g fat_g carb_g fiber_g sugar_g เป็นกรัม ; sodium_mg เป็นมิลลิกรัม",
+    "confidence = สูง / กลาง / ต่ำ ; notes = 1 ประโยค บอกสมมติฐานหลักที่ใช้ (เช่น ปริมาณข้าว ปริมาณน้ำมัน) เพื่อให้ผู้ใช้แก้ได้ถ้าไม่ตรง",
+    "ถ้าผู้ใช้ให้คำอธิบายเพิ่ม ให้ยึดคำอธิบายนั้นเป็นหลักเหนือสิ่งที่เดาจากรูป" + (hint ? "\nคำอธิบายจากผู้ใช้: " + hint : "")
+  ].filter(Boolean).join("\n");
 }
-async function analyzeExercise(dataUrl, hint) {
+function labelPrompt(hint) {
+  return [
+    "คุณกำลังอ่านฉลากโภชนาการ (ข้อมูลโภชนาการ / Nutrition Facts) จากรูปบรรจุภัณฑ์ ให้อ่านตัวเลขจากฉลากโดยตรง ห้ามประมาณเองถ้าฉลากมีตัวเลข",
+    "- ใช้ค่า 'ต่อ 1 หน่วยบริโภค' เป็นหลัก และอ่านจำนวนหน่วยบริโภคต่อภาชนะ",
+    "- ถ้าผู้ใช้ไม่ได้บอกปริมาณที่กิน ให้คิดว่ากิน 1 หน่วยบริโภค ; ถ้าผู้ใช้บอก (เช่น ทั้งกล่อง ครึ่งซอง 2 หน่วยบริโภค 40 กรัม) ให้คูณตามนั้น",
+    "- ให้ตอบ 1 รายการต่อ 1 สินค้า ; name = ชื่อสินค้าถ้าเห็น ไม่เห็นให้ใช้ชื่อประเภทสินค้า ; portion = ปริมาณที่คิด เช่น '1 หน่วยบริโภค (30 g)' ; weight_g = น้ำหนักของปริมาณนั้น ; kcal_low = kcal_high = kcal",
+    "- protein_g fat_g carb_g fiber_g sugar_g เป็นกรัม ; sodium_mg เป็นมิลลิกรัม ; ค่าที่ฉลากไม่ระบุให้ใส่ 0",
+    "- notes = บอกว่าคิดกี่หน่วยบริโภค และทั้งภาชนะมีกี่หน่วยบริโภค ; confidence = สูง ถ้าอ่านตัวเลขได้ชัด ไม่งั้น กลาง หรือ ต่ำ",
+    "- ถ้าในรูปไม่มีฉลากโภชนาการ ให้ประเมินจากสิ่งที่เห็นแบบค่ากลาง ไม่สูงหรือต่ำเกินจริง และบอกใน notes ว่าไม่พบฉลาก" + (hint ? "\nคำอธิบายจากผู้ใช้: " + hint : "")
+  ].join("\n");
+}
+async function analyzeFood(images, hint, mode) {
+  images = images || [];
+  const isLabel = mode === "label" && images.length > 0;
+  const parts = [{ text: isLabel ? labelPrompt(hint) : foodPrompt(images.length, hint) }].concat(images.map(imgPart));
+  const obj = await gemJSON(parts, FOOD_SCHEMA);
+  let low = 0, high = 0, ranged = true;
+  const items = (Array.isArray(obj.items) ? obj.items : []).map(i => {
+    const it = {
+      name: String(i.name || "").trim(), portion: String(i.portion || "").trim(),
+      kcal: r0(num(i.kcal)), p: r1(num(i.protein_g)), f: r1(num(i.fat_g)), c: r1(num(i.carb_g)),
+      fib: r1(num(i.fiber_g)), sug: r1(num(i.sugar_g)), na: r0(num(i.sodium_mg))
+    };
+    // kcal ต่ำกว่าที่มาโครบอกมาก = ตัวเลขไม่สอดคล้องกัน → ยึดตามมาโคร (ถ้าสูงกว่า อาจเป็นแอลกอฮอล์ จึงไม่แก้ ; ฉลากเชื่อตามที่พิมพ์)
+    const mk = it.p * 4 + it.c * 4 + it.f * 9;
+    if (!isLabel && mk > 0 && it.kcal < mk * 0.85) it.kcal = r0(mk);
+    const lo = num(i.kcal_low), hi = num(i.kcal_high);
+    if (lo > 0 && hi >= lo && lo <= it.kcal && it.kcal <= hi) { low += lo; high += hi; } else { ranged = false; low += it.kcal; high += it.kcal; }
+    return it;
+  }).filter(i => i.name || i.kcal);
+  if (!items.length) throw new Error(isLabel ? "อ่านฉลากไม่ได้ ลองถ่ายให้ชัดขึ้นหรือกรอกเอง" : "ไม่พบอาหารในรูป ลองใส่คำอธิบายเพิ่มหรือกรอกเอง");
+  return { items, confidence: obj.confidence || "", notes: obj.notes || "", range: ranged && high > low ? { low: r0(low), high: r0(high) } : null };
+}
+async function analyzeExercise(images, hint) {
+  images = images || [];
   const w = num(state.profile.weight);
   const prompt =
     "คุณเป็นโค้ชออกกำลังกาย สรุปการออกกำลังกาย 1 ครั้งจากรูป (เช่น หน้าจอลู่วิ่ง/จักรยาน, Apple Watch / Fitness, ตารางเวท) และ/หรือคำอธิบายของผู้ใช้ " +
+    (images.length > 1 ? `มี ${images.length} รูป ทั้งหมดเป็นการออกกำลังกายครั้งเดียวกัน ` : "") +
     "type ต้องเป็น cardio, weights หรือ other ; name เป็นภาษาไทย ; minutes = เวลารวมเป็นนาที ; " +
-    "kcal = แคลอรี่ที่เผาผลาญ: ถ้าเห็นตัวเลขในรูปให้ใช้ตามนั้น ถ้าไม่เห็นให้ประเมินด้วยค่า MET" + (w > 0 ? ` สำหรับน้ำหนักตัว ${w} kg` : "") + " ; " +
+    "kcal = แคลอรี่ที่เผาผลาญ: ถ้าเห็นตัวเลขในรูปให้ใช้ตามนั้น ถ้าไม่เห็นให้ประเมินด้วยค่า MET" + (w > 0 ? ` สำหรับน้ำหนักตัว ${w} kg` : "") +
+    " โดยประเมินแบบค่ากลาง ไม่ให้สูงเกินจริง: ใช้ MET ระดับปานกลางของกิจกรรมนั้น (เวทเทรนนิ่งทั่วไป ≈ 3.5–5 MET เพราะรวมเวลาพักระหว่างเซ็ต) และถ้าลังเลให้เลือกค่ากึ่งกลาง ; " +
     "detail = รายละเอียดสั้นๆ เช่น คาร์ดิโอ: ระยะทาง/ความเร็ว/ชีพจร, เวท: ท่า เซ็ต×ครั้ง น้ำหนัก ถ้าข้อมูลไม่พอให้เดาอย่างระมัดระวัง และถ้าไม่รู้เวลาให้ใส่ 0" +
     (hint ? "\nคำอธิบายจากผู้ใช้: " + hint : "");
-  const parts = [{ text: prompt }]; if (dataUrl) parts.push(imgPart(dataUrl));
+  const parts = [{ text: prompt }].concat(images.map(imgPart));
   const o = await gemJSON(parts, { type: "OBJECT", properties: { type: S, name: S, minutes: N, kcal: N, detail: S, notes: S }, required: ["type", "name", "minutes", "kcal", "detail"] });
   return { type: EXTYPE[o.type] ? o.type : "other", name: String(o.name || "").trim(), minutes: r0(num(o.minutes)), kcal: r0(num(o.kcal)), detail: String(o.detail || "").trim(), notes: o.notes || "" };
 }
@@ -383,17 +450,46 @@ async function loadModels() {
     .map(m => m.name.replace(/^models\//, ""));
 }
 
-/* ============ coach (AI trainer feedback per day) ============ */
-const byTime = (a, b) => (a.time || "").localeCompare(b.time || "");
+/* ============ periods ============ */
+function periodDays(range, anchor) {
+  const dt = parseKey(anchor), y = dt.getFullYear(), m = dt.getMonth(), d = dt.getDate();
+  let start, end;
+  if (range === "week") { const dow = (dt.getDay() + 6) % 7; start = new Date(y, m, d - dow); end = new Date(y, m, d - dow + 6); }
+  else { start = new Date(y, m, 1); end = new Date(y, m + 1, 0); }
+  const days = [];
+  for (let x = new Date(start); x <= end; x = new Date(x.getFullYear(), x.getMonth(), x.getDate() + 1)) days.push(dateKey(x));
+  return days;
+}
+function periodLabel(range, days) {
+  const a = parseKey(days[0]), b = parseKey(days[days.length - 1]);
+  if (range === "month") return `${MONS_L[a.getMonth()]} ${a.getFullYear() + 543}`;
+  return `${a.getDate()} ${MONS[a.getMonth()]} – ${b.getDate()} ${MONS[b.getMonth()]} ${b.getFullYear() + 543}`;
+}
+function periodInfo() {
+  const R = state.rep, days = periodDays(R.range, R.anchor);
+  return { range: R.range, days, key: R.range + ":" + days[0], has: days.some(hasData) };
+}
+const bodyEntries = () => Object.keys(state.body).sort().map(d => ({ d, w: num(state.body[d].w), bf: num(state.body[d].bf) }));
+
+/* ============ coach (AI trainer feedback per day / per period) ============ */
+const COACH_TONE = "คุณเป็นเทรนเนอร์และนักโภชนาการส่วนตัวของผู้ใช้ พูดภาษาไทยแบบเป็นกันเอง กระชับ ตรงประเด็น ให้กำลังใจแต่พูดความจริง ประเมินอย่างเป็นกลาง ไม่ชมเกินจริงและไม่ตำหนิเกินจริง คะแนนต้องสะท้อนตัวเลขจริงเทียบเป้าหมาย เป้าหมายของผู้ใช้คือลด %ไขมันโดยรักษากล้ามเนื้อ";
+const COACH_NOTE = "หมายเหตุ: TDEE รวมกิจกรรมเฉลี่ยตามระดับกิจกรรมของผู้ใช้ไว้แล้ว และแคลอรี่จากการออกกำลังกายเป็นค่าประมาณ จึงอย่าบวกเพิ่มเต็มจำนวน ค่าโภชนาการทั้งหมดเป็นค่าประมาณจากรูป";
+function coachWho() {
+  const p = state.profile, g = compute(p);
+  const who = [p.sex === "female" ? "หญิง" : "ชาย", num(p.age) ? `อายุ ${num(p.age)} ปี` : "", num(p.height) ? `สูง ${num(p.height)} cm` : "", num(p.weight) ? `หนัก ${num(p.weight)} kg` : "",
+    num(p.bf) ? `ไขมัน ${num(p.bf)}%` : "", num(p.targetBf) ? `เป้าหมายไขมัน ${num(p.targetBf)}%` : ""].filter(Boolean).join(", ");
+  return ["ผู้ใช้: " + who,
+    g ? `เป้าหมายต่อวัน: ${g.kcal} kcal, โปรตีน ${g.protein} g, ไขมัน ${g.fat} g, คาร์บ ${g.carb} g | TDEE ${r0(g.tdee)} kcal${g.bmr ? `, BMR ${r0(g.bmr)} kcal` : ""}` : "ผู้ใช้ยังไม่ได้ตั้งเป้าหมาย ให้ประเมินตามหลักทั่วไปและแนะนำให้กรอกโปรไฟล์"];
+}
 function daySig(d) {
   const t = dayTotals(d), e = exTotals(d), g = compute(state.profile);
   return [r0(t.kcal), r0(t.p), r0(t.f), r0(t.c), (state.log[d] || []).length, e.n, r0(e.min), r0(e.kcal), g ? g.kcal : 0].join("|");
 }
 function coachPrompt(d) {
-  const p = state.profile, g = compute(p), t = dayTotals(d), e = exTotals(d), today = d === dateKey();
+  const t = dayTotals(d), today = d === dateKey();
   const meals = (state.log[d] || []).slice().sort(byTime).map(m => {
     const mt = mealTotals(m);
-    return `- ${m.time || "?"} ${m.items.map(i => i.name + (i.portion ? ` (${i.portion})` : "")).join(", ")} → ${r0(mt.kcal)} kcal, โปรตีน ${r0(mt.p)} g, ไขมัน ${r0(mt.f)} g, คาร์บ ${r0(mt.c)} g`;
+    return `- ${MT[mealType(m)][2]} ${m.time || "?"} ${m.items.map(i => i.name + (i.portion ? ` (${i.portion})` : "")).join(", ")} → ${r0(mt.kcal)} kcal, โปรตีน ${r0(mt.p)} g, ไขมัน ${r0(mt.f)} g, คาร์บ ${r0(mt.c)} g`;
   });
   const exs = (state.ex[d] || []).slice().sort(byTime).map(x =>
     `- ${x.time || "?"} ${(EXTYPE[x.type] || EXTYPE.other)[1]}: ${x.name || ""} ${r0(num(x.minutes))} นาที ~${r0(num(x.kcal))} kcal${x.detail ? " (" + String(x.detail).replace(/\s+/g, " ").slice(0, 200) + ")" : ""}`);
@@ -401,62 +497,150 @@ function coachPrompt(d) {
   const pl = prev.filter(x => (state.log[x] || []).length);
   const pt = pl.reduce((a, x) => addT(a, dayTotals(x)), zeroT());
   const pe = prev.reduce((a, x) => { const v = exTotals(x); a.c += v.cn; a.w += v.wn; return a; }, { c: 0, w: 0 });
-  const who = [p.sex === "female" ? "หญิง" : "ชาย", num(p.age) ? `อายุ ${num(p.age)} ปี` : "", num(p.height) ? `สูง ${num(p.height)} cm` : "", num(p.weight) ? `หนัก ${num(p.weight)} kg` : "",
-    num(p.bf) ? `ไขมัน ${num(p.bf)}%` : "", num(p.targetBf) ? `เป้าหมายไขมัน ${num(p.targetBf)}%` : ""].filter(Boolean).join(", ");
-  const L = [
-    "คุณเป็นเทรนเนอร์และนักโภชนาการส่วนตัวของผู้ใช้ พูดภาษาไทยแบบเป็นกันเอง กระชับ ตรงประเด็น ให้กำลังใจแต่พูดความจริง เป้าหมายของผู้ใช้คือลด %ไขมันโดยรักษากล้ามเนื้อ",
-    "ผู้ใช้: " + who,
-    g ? `เป้าหมายต่อวัน: ${g.kcal} kcal, โปรตีน ${g.protein} g, ไขมัน ${g.fat} g, คาร์บ ${g.carb} g | TDEE ${r0(g.tdee)} kcal${g.bmr ? `, BMR ${r0(g.bmr)} kcal` : ""}` : "ผู้ใช้ยังไม่ได้ตั้งเป้าหมาย ให้ประเมินตามหลักทั่วไปและแนะนำให้กรอกโปรไฟล์",
+  return [COACH_TONE, ...coachWho(),
     `วันที่ประเมิน: ${fmtDate(d)} ${today ? `(ตอนนี้เวลา ${timeNow()} วันอาจยังไม่จบ)` : "(วันนี้จบไปแล้ว เป็นการดูย้อนหลัง)"}`,
     "มื้ออาหารที่บันทึก:", meals.length ? meals.join("\n") : "- ยังไม่มี",
     `รวมที่กิน: ${r0(t.kcal)} kcal, โปรตีน ${r0(t.p)} g, ไขมัน ${r0(t.f)} g, คาร์บ ${r0(t.c)} g, ใยอาหาร ${r0(t.fib)} g, น้ำตาล ${r0(t.sug)} g, โซเดียม ${r0(t.na)} mg`,
     "ออกกำลังกาย:", exs.length ? exs.join("\n") : "- ไม่มี",
     pl.length ? `7 วันก่อนหน้า: บันทึกอาหาร ${pl.length} วัน เฉลี่ย ${r0(pt.kcal / pl.length)} kcal, โปรตีน ${r0(pt.p / pl.length)} g ต่อวัน | คาร์ดิโอ ${pe.c} ครั้ง เวท ${pe.w} ครั้ง` : "7 วันก่อนหน้า: ยังไม่มีข้อมูล",
-    "หมายเหตุ: TDEE รวมกิจกรรมเฉลี่ยตามระดับกิจกรรมของผู้ใช้ไว้แล้ว และแคลอรี่จากการออกกำลังกายเป็นค่าประมาณ จึงอย่าบวกเพิ่มเต็มจำนวน ค่าโภชนาการทั้งหมดเป็นค่าประมาณจากรูป",
+    COACH_NOTE,
     "ให้ตอบดังนี้: headline = สรุปวันนี้ 1 ประโยค ; score = คะแนน 0-100 ของวันนี้เทียบกับเป้าหมาย (ถ้าวันยังไม่จบ ให้คะแนนตามแนวโน้ม) ; " +
     "good = 1-3 ข้อ สิ่งที่ทำได้ดี ; improve = 1-3 ข้อ สิ่งที่ขาดหรือเกิน พร้อมตัวเลข (เช่น โปรตีนขาดอีกกี่กรัม แคลอรี่เกินเท่าไหร่ สมดุลพลังงานเทียบ TDEE เป็นอย่างไร การออกกำลังกายช่วยได้แค่ไหน เวท/คาร์ดิโอพอไหม) ; " +
     "next = คำแนะนำที่ทำได้ทันที 1-3 ประโยค: ถ้าวันยังไม่จบ บอกว่ามื้อถัดไปควรกินอะไรประมาณเท่าไหร่ ยกตัวอย่างอาหารไทยที่หาง่าย ; ถ้าวันจบแล้ว บอกสิ่งที่ควรปรับพรุ่งนี้ " +
     "แต่ละข้อสั้นไม่เกิน 2 ประโยค ห้ามวินิจฉัยโรค และถ้ากินต่ำกว่า BMR มากให้เตือนว่าไม่ควรอดมากเกินไป"
-  ];
-  return L.join("\n");
+  ].join("\n");
+}
+function periodSig(days) {
+  const g = compute(state.profile);
+  return days.map(d => { const t = dayTotals(d), e = exTotals(d); return r0(t.kcal) + "." + r0(t.p) + "." + r0(e.min); }).join("|") + "|" + (g ? g.kcal : 0) + "|" + Object.keys(state.body).length;
+}
+function periodPrompt(range, days) {
+  const tk = dateKey(), past = days.filter(d => d <= tk), logged = past.filter(d => (state.log[d] || []).length);
+  const tot = logged.reduce((a, d) => addT(a, dayTotals(d)), zeroT()), n = logged.length;
+  const ex = past.reduce((a, d) => { const e = exTotals(d); a.c += e.cn; a.cm += e.cmin; a.w += e.wn; a.wm += e.wmin; return a; }, { c: 0, cm: 0, w: 0, wm: 0 });
+  const rows = past.map(d => {
+    const dt = parseKey(d), has = (state.log[d] || []).length, t = dayTotals(d), e = exTotals(d);
+    return `- ${DAYS_S[dt.getDay()]} ${fmtShort(d)}: ` +
+      (has ? `${r0(t.kcal)} kcal, โปรตีน ${r0(t.p)} g, ไขมัน ${r0(t.f)} g, คาร์บ ${r0(t.c)} g, น้ำตาล ${r0(t.sug)} g, โซเดียม ${r0(t.na)} mg` : "ไม่ได้บันทึกอาหาร") +
+      (e.n ? ` | ออกกำลังกาย: ${e.cn ? `คาร์ดิโอ ${r0(e.cmin)} นาที ` : ""}${e.wn ? `เวท ${r0(e.wmin)} นาที ` : ""}${!e.cn && !e.wn ? `อื่นๆ ${r0(e.min)} นาที ` : ""}(~${r0(e.kcal)} kcal)` : " | ไม่ได้ออกกำลังกาย");
+  });
+  const from = shiftDate(days[0], -14), be = bodyEntries().filter(e => e.d >= from && e.d <= days[days.length - 1]);
+  const word = range === "week" ? "สัปดาห์" : "เดือน";
+  return [COACH_TONE, ...coachWho(),
+    `ช่วงที่ประเมิน: ${periodLabel(range, days)} (${word}${past.length < days.length ? "นี้ยังไม่จบ มีข้อมูลถึงวันนี้" : "นี้จบแล้ว"})`,
+    "ข้อมูลรายวัน:", rows.join("\n"),
+    n ? `ค่าเฉลี่ยต่อวัน (${n} วันที่บันทึก): ${r0(tot.kcal / n)} kcal, โปรตีน ${r0(tot.p / n)} g, ไขมัน ${r0(tot.f / n)} g, คาร์บ ${r0(tot.c / n)} g` : "ยังไม่มีวันที่บันทึกอาหาร",
+    `ออกกำลังกายรวม: คาร์ดิโอ ${ex.c} ครั้ง ${r0(ex.cm)} นาที, เวท ${ex.w} ครั้ง ${r0(ex.wm)} นาที`,
+    be.length ? "น้ำหนัก/ไขมันที่วัด: " + be.map(e => `${fmtShort(e.d)} ${e.w ? e.w + " kg" : ""}${e.bf ? " " + e.bf + "%" : ""}`).join(" ; ") : "ไม่มีข้อมูลน้ำหนักในช่วงนี้ (ควรแนะนำให้ชั่งสัปดาห์ละ 1–2 ครั้ง)",
+    COACH_NOTE + " วันที่ไม่ได้บันทึกอาหารห้ามนับเป็นวันที่กิน 0 kcal",
+    `ให้ตอบดังนี้: headline = สรุปภาพรวมของ${word} 1 ประโยค ; score = คะแนน 0-100 ของ${word}นี้ (ดูทั้งความสม่ำเสมอของการบันทึก แคลอรี่ โปรตีน และการออกกำลังกาย) ; ` +
+    "good = 1-3 ข้อ สิ่งที่ทำได้ดี ; improve = 1-3 ข้อ สิ่งที่ควรปรับ พร้อมตัวเลข (เช่น วันไหนหลุด โปรตีนเฉลี่ยขาดเท่าไหร่ เวท/คาร์ดิโอพอไหม แนวโน้มน้ำหนักสอดคล้องกับการขาดดุลไหม) ; " +
+    `next = แผนที่ทำได้จริงสำหรับ${word}ถัดไป 2-3 ประโยค แต่ละข้อสั้นไม่เกิน 2 ประโยค ห้ามวินิจฉัยโรค`
+  ].join("\n");
 }
 const COACH_SCHEMA = { type: "OBJECT", properties: { headline: S, score: N, good: { type: "ARRAY", items: S }, improve: { type: "ARRAY", items: S }, next: S }, required: ["headline", "score", "good", "improve", "next"] };
-function refreshCoach() { const el = $("#coach"); if (el) el.innerHTML = coachHtml(state.date); }
-async function runCoach(d, auto) {
-  if (!state.settings.key) { if (!auto) toast("ใส่ Gemini API key ในแท็บโปรไฟล์ก่อน"); return; }
-  if (!(state.log[d] || []).length && !(state.ex[d] || []).length) { if (!auto) toast("ยังไม่มีข้อมูลของวันนี้ให้โค้ชดู"); return; }
-  const sig = daySig(d), tok = ++state.coachTok;
-  state.coachBusy = d; state.coachErr = ""; refreshCoach();
+function refreshCoach() {
+  const a = $("#coach"); if (a) a.innerHTML = coachDayHtml(state.date);
+  const b = $("#coachP"); if (b) b.innerHTML = coachPeriodHtml();
+}
+async function runCoach(key, prompt, sig) {
+  const tok = ++state.coachSeq;
+  state.coachRun[key] = tok; delete state.coachErrs[key]; refreshCoach();
   try {
-    const o = await gemJSON([{ text: coachPrompt(d) }], COACH_SCHEMA);
-    if (tok !== state.coachTok) return;   // มีคำขอใหม่กว่าแล้ว
+    const o = await gemJSON([{ text: prompt }], COACH_SCHEMA);
+    if (state.coachRun[key] !== tok) return;   // มีคำขอใหม่กว่าแล้ว
     const arr = a => (Array.isArray(a) ? a : []).map(x => String(x).trim()).filter(Boolean).slice(0, 4);
-    state.coach[d] = { sig, at: timeNow(), headline: String(o.headline || "").trim(), score: clamp(r0(num(o.score)), 0, 100), good: arr(o.good), improve: arr(o.improve), next: String(o.next || "").trim() };
+    state.coach[key] = { sig, at: (key.includes(":") ? fmtShort(dateKey()) + " " : "") + timeNow(), headline: String(o.headline || "").trim(), score: clamp(r0(num(o.score)), 0, 100), good: arr(o.good), improve: arr(o.improve), next: String(o.next || "").trim() };
     persist(K.coach, state.coach);
   } catch (e) {
-    if (tok !== state.coachTok) return;
-    state.coachErr = e.message; state.coachErrDate = d;
+    if (state.coachRun[key] !== tok) return;
+    state.coachErrs[key] = e.message;
   }
-  state.coachBusy = null; refreshCoach();
+  delete state.coachRun[key]; refreshCoach();
 }
-function coachHtml(d) {
-  const c = state.coach[d], busy = state.coachBusy === d;
-  const stale = c && c.sig !== daySig(d);
+function coachDay(d, auto) {
+  if (!state.settings.key) { if (!auto) toast("ใส่ Gemini API key ในแท็บโปรไฟล์ก่อน"); return; }
+  if (!hasData(d)) { if (!auto) toast("ยังไม่มีข้อมูลของวันนี้ให้โค้ชดู"); return; }
+  return runCoach(d, coachPrompt(d), daySig(d));
+}
+function coachPeriod() {
+  const P = periodInfo();
+  if (!state.settings.key) { toast("ใส่ Gemini API key ในแท็บโปรไฟล์ก่อน"); return; }
+  if (!P.has) { toast("ยังไม่มีข้อมูลในช่วงนี้ให้โค้ชดู"); return; }
+  return runCoach(P.key, periodPrompt(P.range, P.days), periodSig(P.days));
+}
+function coachView(key, sig, act, title, intro, nextLabel, askLabel) {
+  const c = state.coach[key], busy = key in state.coachRun, err = state.coachErrs[key];
+  const stale = c && c.sig !== sig;
   const li = a => (a || []).map(x => `<li>${esc(x)}</li>`).join("");
-  let h = `<div class="row between"><h2 style="margin:0">💬 โค้ช AI</h2>${c ? `<span class="chip"><b>${c.score}</b>/100</span>` : ""}</div>`;
-  if (busy) h += `<div class="notice"><span class="spinner"></span>โค้ชกำลังดูข้อมูลของวันนี้...</div>`;
-  if (!busy && state.coachErr && state.coachErrDate === d) h += `<div class="notice warn">${esc(state.coachErr)}</div>`;
+  let h = `<div class="row between"><h2 style="margin:0">${title}</h2>${c ? `<span class="chip"><b>${c.score}</b>/100</span>` : ""}</div>`;
+  if (busy) h += `<div class="notice"><span class="spinner"></span>โค้ชกำลังดูข้อมูล...</div>`;
+  if (!busy && err) h += `<div class="notice warn">${esc(err)}</div>`;
   if (c) {
     h += `<div class="coach"><p><b>${esc(c.headline)}</b></p>
       ${c.good.length ? `<div class="sub" style="color:var(--accent)">✅ ทำได้ดี</div><ul>${li(c.good)}</ul>` : ""}
       ${c.improve.length ? `<div class="sub" style="color:var(--warn)">⚠️ ควรปรับ</div><ul>${li(c.improve)}</ul>` : ""}
-      ${c.next ? `<div class="notice"><b>ต่อไป:</b> ${esc(c.next)}</div>` : ""}
+      ${c.next ? `<div class="notice"><b>${nextLabel}:</b> ${esc(c.next)}</div>` : ""}
       <div class="muted small">อัปเดตเมื่อ ${esc(c.at)}${stale ? " · ข้อมูลเปลี่ยนหลังจากนั้น" : ""} · คำแนะนำจาก AI เป็นแนวทางทั่วไป ไม่ใช่คำแนะนำทางการแพทย์</div></div>`;
-  } else if (!busy) {
-    h += `<p class="muted small" style="margin:8px 0">ให้โค้ชสรุปว่าวันนี้กินเป็นอย่างไร ขาดหรือเกินอะไร การออกกำลังกายช่วยได้แค่ไหน และมื้อต่อไปควรกินอะไร</p>`;
-  }
-  h += `<button class="btn block ${!c || stale ? "primary" : ""}" data-act="coach" ${busy ? "disabled" : ""} style="margin-top:8px">${c ? (stale ? "🔄 อัปเดตคำแนะนำ (ข้อมูลเปลี่ยน)" : "🔄 ขอคำแนะนำใหม่") : "ขอคำแนะนำจากโค้ช"}</button>`;
+  } else if (!busy) h += `<p class="muted small" style="margin:8px 0">${intro}</p>`;
+  h += `<button class="btn block ${!c || stale ? "primary" : ""}" data-act="${act}" ${busy ? "disabled" : ""} style="margin-top:8px">${c ? (stale ? "🔄 อัปเดตคำแนะนำ (ข้อมูลเปลี่ยน)" : "🔄 ขอคำแนะนำใหม่") : askLabel}</button>`;
   return h;
+}
+const coachDayHtml = d => coachView(d, daySig(d), "coach", "💬 โค้ช AI", "ให้โค้ชสรุปว่าวันนี้กินเป็นอย่างไร ขาดหรือเกินอะไร การออกกำลังกายช่วยได้แค่ไหน และมื้อต่อไปควรกินอะไร", "ต่อไป", "ขอคำแนะนำจากโค้ช");
+function coachPeriodHtml() {
+  const P = periodInfo(), word = P.range === "week" ? "สัปดาห์" : "เดือน";
+  return coachView(P.key, periodSig(P.days), "coachp", `💬 โค้ชสรุป${word}นี้`, `ให้โค้ชดูทั้ง${word}: แนวโน้มการกิน วันที่หลุด ความสม่ำเสมอของคาร์ดิโอ/เวท น้ำหนัก และแผน${word}ถัดไป`, "แผนถัดไป", `ขอสรุป${word}นี้จากโค้ช`);
+}
+
+/* ============ share / export ============ */
+function shareText(d) {
+  const g = compute(state.profile), t = dayTotals(d), meals = state.log[d] || [], exs = (state.ex[d] || []).slice().sort(byTime), c = state.coach[d];
+  const L = [`📊 สรุป ${fmtDate(d)}`];
+  L.push(g ? `แคลอรี่ ${r0(t.kcal)} / ${g.kcal} kcal (${g.kcal - r0(t.kcal) >= 0 ? "เหลือ " + (g.kcal - r0(t.kcal)) : "เกิน " + (r0(t.kcal) - g.kcal)})` : `แคลอรี่ ${r0(t.kcal)} kcal`);
+  L.push(g ? `โปรตีน ${r0(t.p)}/${g.protein} g · ไขมัน ${r0(t.f)}/${g.fat} g · คาร์บ ${r0(t.c)}/${g.carb} g` : `โปรตีน ${r0(t.p)} g · ไขมัน ${r0(t.f)} g · คาร์บ ${r0(t.c)} g`);
+  if (meals.length) {
+    L.push("", "🍽️ มื้ออาหาร");
+    MTYPES.forEach(([k, , label]) => meals.filter(m => mealType(m) === k).sort(byTime).forEach(m => L.push(`• ${label} ${m.time || ""} ${mealName(m)} (${r0(mealTotals(m).kcal)} kcal)`)));
+  }
+  if (exs.length) {
+    L.push("", "🏃 ออกกำลังกาย");
+    exs.forEach(x => L.push(`• ${x.name || (EXTYPE[x.type] || EXTYPE.other)[1]}${num(x.minutes) ? ` ${r0(x.minutes)} นาที` : ""}${num(x.kcal) ? ` (~${r0(x.kcal)} kcal)` : ""}`));
+  }
+  if (c && c.sig === daySig(d)) L.push("", `💬 โค้ช: ${c.headline} (${c.score}/100)`);
+  return L.join("\n");
+}
+async function shareDay() {
+  const text = shareText(state.date);
+  if (navigator.share) { try { await navigator.share({ text }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(text); toast("คัดลอกสรุปแล้ว นำไปวางใน LINE ได้เลย"); }
+  catch (e) { state.draft = { kind: "share", text }; renderModal(); }
+}
+function download(name, text, type) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+function exportData() {
+  const data = { app: "foodapp", v: 3, exported: new Date().toISOString(), profile: state.profile, log: state.log, ex: state.ex, coach: state.coach, body: state.body, fav: state.fav };
+  download(`foodapp-backup-${dateKey()}.json`, JSON.stringify(data), "application/json");
+}
+const csvCell = v => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const csvText = rows => "﻿" + rows.map(r => r.map(csvCell).join(",")).join("\r\n");
+function csvDaily() {
+  const dates = [...new Set([...Object.keys(state.log), ...Object.keys(state.ex), ...Object.keys(state.body)])].sort();
+  const rows = [["วันที่", "แคลอรี่ (kcal)", "โปรตีน (g)", "ไขมัน (g)", "คาร์บ (g)", "ใยอาหาร (g)", "น้ำตาล (g)", "โซเดียม (mg)", "จำนวนมื้อ", "ออกกำลังกายรวม (นาที)", "คาร์ดิโอ (นาที)", "เวท (นาที)", "เผาผลาญ (kcal)", "น้ำหนัก (kg)", "%FAT"]];
+  dates.forEach(d => {
+    const t = dayTotals(d), e = exTotals(d), b = state.body[d] || {}, n = (state.log[d] || []).length;
+    rows.push([d, n ? r0(t.kcal) : "", n ? r1(t.p) : "", n ? r1(t.f) : "", n ? r1(t.c) : "", n ? r1(t.fib) : "", n ? r1(t.sug) : "", n ? r0(t.na) : "", n, r0(e.min), r0(e.cmin), r0(e.wmin), r0(e.kcal), num(b.w) || "", num(b.bf) || ""]);
+  });
+  return csvText(rows);
+}
+function csvItems() {
+  const rows = [["วันที่", "เวลา", "มื้อ", "รายการ", "ปริมาณ", "แคลอรี่ (kcal)", "โปรตีน (g)", "ไขมัน (g)", "คาร์บ (g)", "ใยอาหาร (g)", "น้ำตาล (g)", "โซเดียม (mg)"]];
+  Object.keys(state.log).sort().forEach(d => state.log[d].slice().sort(byTime).forEach(m => m.items.forEach(i =>
+    rows.push([d, m.time || "", MT[mealType(m)][2], i.name, i.portion || "", r0(num(i.kcal)), r1(num(i.p)), r1(num(i.f)), r1(num(i.c)), r1(num(i.fib)), r1(num(i.sug)), r0(num(i.na))]))));
+  return csvText(rows);
 }
 
 /* ============ render: today ============ */
@@ -475,6 +659,13 @@ function macroBar(label, val, target, color) {
     <div class="track"><div class="fill" style="width:${pct}%;background:${color}"></div></div></div>`;
 }
 const extrasLine = t => `ใยอาหาร ${r0(t.fib)} g · น้ำตาล ${r0(t.sug)} g · โซเดียม ${r0(t.na)} mg`;
+function mealCard(m) {
+  const mt = mealTotals(m);
+  return `<div class="card meal">${m.thumb ? `<img class="thumb" src="${esc(m.thumb)}" alt="">` : '<div class="thumb">🍽️</div>'}
+    <div class="grow"><div class="row between"><b>${esc(mealName(m))}</b><span class="muted small">${esc(m.time || "")}</span></div>
+    <div class="chips"><span class="chip"><b>${r0(mt.kcal)}</b> kcal</span><span class="chip p">P ${r0(mt.p)}</span><span class="chip f">F ${r0(mt.f)}</span><span class="chip c">C ${r0(mt.c)}</span></div>
+    <div class="row" style="margin-top:6px"><button class="btn small" data-act="edit" data-id="${m.id}">แก้ไข</button><button class="btn small danger" data-act="del" data-id="${m.id}">ลบ</button></div></div></div>`;
+}
 function renderToday() {
   const t = compute(state.profile), tot = dayTotals(state.date), meals = state.log[state.date] || [];
   const exs = state.ex[state.date] || [], et = exTotals(state.date);
@@ -494,19 +685,18 @@ function renderToday() {
       ${macroBar("โปรตีน", tot.p, t.protein, "var(--p)")}${macroBar("ไขมัน", tot.f, t.fat, "var(--f)")}${macroBar("คาร์บ", tot.c, t.carb, "var(--c)")}
       <div class="muted small" style="margin-top:8px">${extrasLine(tot)}</div></div>`;
   }
-  h += `<div class="card" id="coach">${coachHtml(state.date)}</div>`;
+  h += `<div class="card" id="coach">${coachDayHtml(state.date)}</div>`;
+  if (hasData(state.date)) h += `<button class="btn block" data-act="share" style="margin-bottom:14px">📤 แชร์สรุปวันนี้ (LINE / คัดลอก)</button>`;
   h += `<h2>มื้ออาหาร (${meals.length})</h2>`;
   if (!meals.length) h += `<div class="card empty">ยังไม่มีการบันทึก<br>กดปุ่ม ＋ เพื่อถ่ายรูปอาหาร</div>`;
-  meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).forEach(m => {
-    const mt = mealTotals(m);
-    h += `<div class="card meal">${m.thumb ? `<img class="thumb" src="${esc(m.thumb)}" alt="">` : '<div class="thumb">🍽️</div>'}
-      <div class="grow"><div class="row between"><b>${esc(m.items.map(i => i.name).filter(Boolean).join(", ") || "อาหาร")}</b><span class="muted small">${esc(m.time || "")}</span></div>
-      <div class="chips"><span class="chip"><b>${r0(mt.kcal)}</b> kcal</span><span class="chip p">P ${r0(mt.p)}</span><span class="chip f">F ${r0(mt.f)}</span><span class="chip c">C ${r0(mt.c)}</span></div>
-      <div class="row" style="margin-top:6px"><button class="btn small" data-act="edit" data-id="${m.id}">แก้ไข</button><button class="btn small danger" data-act="del" data-id="${m.id}">ลบ</button></div></div></div>`;
+  MTYPES.forEach(([k, ic, label]) => {
+    const list = meals.filter(m => mealType(m) === k).sort(byTime); if (!list.length) return;
+    const st = list.reduce((a, m) => addT(a, mealTotals(m)), zeroT());
+    h += `<div class="mhead"><b>${ic} ${label}</b><span class="muted small">${r0(st.kcal)} kcal · P ${r0(st.p)} · F ${r0(st.f)} · C ${r0(st.c)}</span></div>` + list.map(mealCard).join("");
   });
   h += `<h2 style="margin-top:18px">ออกกำลังกาย (${exs.length})${et.n ? ` <span class="muted small" style="font-weight:400">· ${r0(et.min)} นาที${et.kcal > 0 ? ` · ~${r0(et.kcal)} kcal` : ""}</span>` : ""}</h2>`;
   if (!exs.length) h += `<div class="card empty">ยังไม่มีการออกกำลังกาย<br>กดปุ่ม ＋ แล้วเลือก "ออกกำลังกาย"</div>`;
-  exs.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).forEach(e => {
+  exs.slice().sort(byTime).forEach(e => {
     const ty = EXTYPE[e.type] || EXTYPE.other;
     h += `<div class="card meal">${e.thumb ? `<img class="thumb" src="${esc(e.thumb)}" alt="">` : `<div class="thumb">${ty[0]}</div>`}
       <div class="grow"><div class="row between"><b>${esc(e.name || ty[1])}</b><span class="muted small">${esc(e.time || "")}</span></div>
@@ -519,20 +709,6 @@ function renderToday() {
 }
 
 /* ============ render: reports ============ */
-function periodDays(range, anchor) {
-  const dt = parseKey(anchor), y = dt.getFullYear(), m = dt.getMonth(), d = dt.getDate();
-  let start, end;
-  if (range === "week") { const dow = (dt.getDay() + 6) % 7; start = new Date(y, m, d - dow); end = new Date(y, m, d - dow + 6); }
-  else { start = new Date(y, m, 1); end = new Date(y, m + 1, 0); }
-  const days = [];
-  for (let x = new Date(start); x <= end; x = new Date(x.getFullYear(), x.getMonth(), x.getDate() + 1)) days.push(dateKey(x));
-  return days;
-}
-function periodLabel(range, days) {
-  const a = parseKey(days[0]), b = parseKey(days[days.length - 1]);
-  if (range === "month") return `${MONS_L[a.getMonth()]} ${a.getFullYear() + 543}`;
-  return `${a.getDate()} ${MONS[a.getMonth()]} – ${b.getDate()} ${MONS[b.getMonth()]} ${b.getFullYear() + 543}`;
-}
 function chartSvg(days, vals, target, range) {
   const W = 340, H = 150, pl = 4, pr = 4, pt = 12, pb = 22, n = days.length, bw = (W - pl - pr) / n;
   const max = Math.max(target || 0, ...vals, 500) * 1.12;
@@ -546,6 +722,46 @@ function chartSvg(days, vals, target, range) {
   });
   if (target) s += `<line class="tgt" x1="${pl}" x2="${W - pr}" y1="${y(target).toFixed(1)}" y2="${y(target).toFixed(1)}"/><text x="${W - pr}" y="${(y(target) - 3).toFixed(1)}" text-anchor="end">เป้า ${target}</text>`;
   return s + "</svg>";
+}
+function lineSvg(pts, color, target, label) {   // pts: [{d, v}] sorted by date
+  const W = 340, H = 118, pl = 6, pr = 44, pt = 14, pb = 20, last = pts[pts.length - 1];
+  const t0 = parseKey(pts[0].d).getTime(), span = Math.max(1, parseKey(last.d).getTime() - t0);
+  const vals = pts.map(p => p.v).concat(target > 0 ? [target] : []);
+  let lo = Math.min(...vals), hi = Math.max(...vals); const padv = Math.max((hi - lo) * 0.15, 0.5); lo -= padv; hi += padv;
+  const x = d => pts.length === 1 ? (pl + W - pr) / 2 : pl + (W - pl - pr) * (parseKey(d).getTime() - t0) / span;
+  const y = v => pt + (H - pt - pb) * (1 - (v - lo) / (hi - lo));
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟ${label}">`;
+  const yl = y(last.v) + 3; let yt = target > 0 ? y(target) + 3 : 0;
+  if (target > 0) {
+    if (Math.abs(yt - yl) < 10) yt = yl + (yt >= yl ? 10 : -10);
+    s += `<line class="tgt" x1="${pl}" x2="${W - pr}" y1="${y(target).toFixed(1)}" y2="${y(target).toFixed(1)}"/><text x="${W - pr + 4}" y="${yt.toFixed(1)}">เป้า ${target}</text>`;
+  }
+  if (pts.length > 1) s += `<polyline fill="none" style="stroke:${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${pts.map(p => x(p.d).toFixed(1) + "," + y(p.v).toFixed(1)).join(" ")}"/>`;
+  pts.forEach(p => { s += `<circle cx="${x(p.d).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="3" style="fill:${color}"/>`; });
+  s += `<text x="${W - pr + 4}" y="${yl.toFixed(1)}" style="fill:var(--text);font-weight:700;font-size:10px">${r1(last.v)}</text>`;
+  s += `<text x="${pl}" y="${H - 5}">${fmtShort(pts[0].d)}</text>`;
+  if (pts.length > 1) s += `<text x="${W - pr}" y="${H - 5}" text-anchor="end">${fmtShort(last.d)}</text>`;
+  return s + "</svg>";
+}
+function bodyCardHtml() {
+  const es = bodyEntries(), tb = num(state.profile.targetBf);
+  let h = `<div class="card"><div class="row between"><h2 style="margin:0">⚖️ น้ำหนัก & %FAT</h2><button class="btn small primary" data-act="addbody">＋ บันทึก</button></div>`;
+  if (!es.length) return h + `<p class="muted small" style="margin:10px 0 0">บันทึกน้ำหนักและ %FAT จากเครื่องชั่งสัปดาห์ละ 1–2 ครั้ง ในเวลาเดิม (เช่น ตอนเช้าหลังตื่น) เพื่อดูแนวโน้ม และให้แอปปรับเป้าแคลอรี่ตามน้ำหนักล่าสุด</p></div>`;
+  const wp = es.filter(e => e.w > 0), bp = es.filter(e => e.bf > 0), both = es.filter(e => e.w > 0 && e.bf > 0);
+  h += `<div class="kv" style="margin-top:10px">`;
+  if (wp.length) { const a = wp[0], b = wp[wp.length - 1]; h += `<span>น้ำหนัก</span><b>${wp.length > 1 ? `${a.w} → ${b.w} kg (${sgn(b.w - a.w)})` : `${b.w} kg`}</b>`; }
+  if (bp.length) { const a = bp[0], b = bp[bp.length - 1]; h += `<span>%FAT${tb ? ` <span class="muted small">(เป้า ${tb}%)</span>` : ""}</span><b>${bp.length > 1 ? `${a.bf} → ${b.bf}% (${sgn(b.bf - a.bf)})` : `${b.bf}%`}</b>`; }
+  if (both.length > 1) {
+    const fm = e => e.w * e.bf / 100, a = both[0], b = both[both.length - 1];
+    h += `<span>มวลไขมัน</span><b>${sgn(fm(b) - fm(a))} kg</b><span>มวลไร้ไขมัน (กล้ามเนื้อ+อื่นๆ)</span><b>${sgn((b.w - fm(b)) - (a.w - fm(a)))} kg</b>`;
+  }
+  h += `</div>`;
+  if (wp.length) h += `<div class="sub">น้ำหนัก (kg)</div>${lineSvg(wp.map(e => ({ d: e.d, v: e.w })), "var(--p)", 0, "น้ำหนัก")}`;
+  if (bp.length) h += `<div class="sub">%FAT</div>${lineSvg(bp.map(e => ({ d: e.d, v: e.bf })), "var(--f)", tb, "เปอร์เซ็นต์ไขมัน")}`;
+  if (both.length > 1) h += `<div class="muted small">เครื่องชั่งวัด %FAT คลาดเคลื่อนได้ตามปริมาณน้ำในร่างกาย ให้ดูแนวโน้มหลายสัปดาห์ มากกว่าค่าครั้งเดียว</div>`;
+  h += `<div class="sub">รายการล่าสุด</div>` + es.slice(-5).reverse().map(e =>
+    `<div class="brow"><span>${fmtShort(e.d)} ${parseKey(e.d).getFullYear() + 543}</span><span>${e.w ? e.w + " kg" : "–"} · ${e.bf ? e.bf + "%" : "–"}<button class="icon-btn" data-act="delbody" data-date="${e.d}" aria-label="ลบรายการ ${fmtShort(e.d)}">🗑️</button></span></div>`).join("");
+  return h + `</div>`;
 }
 function renderReport() {
   const R = state.rep, days = periodDays(R.range, R.anchor), t = compute(state.profile), target = t ? t.kcal : 0;
@@ -561,9 +777,10 @@ function renderReport() {
     <div class="date-nav"><button class="icon-btn" data-act="rnav" data-d="-1" aria-label="ก่อนหน้า">◀</button>
       <div style="text-align:center"><b>${periodLabel(R.range, days)}</b><div class="muted small">บันทึกอาหาร ${n}/${days.length} วัน</div></div>
       <button class="icon-btn" data-act="rnav" data-d="1" aria-label="ถัดไป">▶</button></div>`;
-  if (!n && !ex.n) return h + `<div class="card empty">ยังไม่มีข้อมูลในช่วงนี้</div>`;
+  if (!n && !ex.n) return h + `<div class="card empty">ยังไม่มีข้อมูลอาหาร/ออกกำลังกายในช่วงนี้</div>` + bodyCardHtml();
   h += `<div class="card"><h2>แคลอรี่รายวัน</h2>${chartSvg(days, vals, target, R.range)}
-    <div class="muted small">แท่งสีส้ม = เกินเป้าหมาย</div></div>`;
+    <div class="muted small">แท่งสีส้ม = เกินเป้าหมาย</div></div>
+    <div class="card" id="coachP">${coachPeriodHtml()}</div>`;
   if (n) {
     h += `<div class="card"><h2>ค่าเฉลี่ยต่อวัน (เฉพาะวันที่บันทึก)</h2><div class="kv">
       <span>แคลอรี่</span><b>${r0(avg("kcal"))} kcal${target ? ` <span class="muted small">(เป้า ${target})</span>` : ""}</b>
@@ -582,6 +799,7 @@ function renderReport() {
       <span>🏃 คาร์ดิโอ</span><b>${ex.cn} ครั้ง · ${r0(ex.cmin)} นาที</b>
       <span>🏋️ เวทเทรนนิ่ง</span><b>${ex.wn} ครั้ง · ${r0(ex.wmin)} นาที</b>
       <span>แคลอรี่เผาผลาญ (ประมาณ)</span><b>${r0(ex.kcal)} kcal</b></div>` : `<div class="muted">ยังไม่มีบันทึกออกกำลังกายในช่วงนี้</div>`}</div>`;
+  h += bodyCardHtml();
   const tk = dateKey();
   h += `<div class="card"><h2>รายวัน <span class="muted small" style="font-weight:400">(แตะเพื่อดูรายละเอียด)</span></h2>
     <div class="drow head"><span>วัน</span><span>kcal</span><span>P</span><span>F</span><span>C</span><span>ออกกำลัง</span></div>`;
@@ -623,6 +841,7 @@ function renderProfile() {
       ${f("bf", "%FAT ปัจจุบัน", "number", 'step="0.1" min="3" max="60"')}
       ${f("targetBf", "%FAT เป้าหมาย", "number", 'step="0.1" min="3" max="60"')}
     </div>
+    <div class="muted small" style="margin-bottom:10px">น้ำหนักและ %FAT จะอัปเดตเองเมื่อบันทึกค่าใหม่ที่ ＋ → น้ำหนัก / %FAT</div>
     <label class="fld">ระดับกิจกรรม<select data-f="activity">${ACTIVITY.map(([v, l]) => `<option value="${v}" ${num(p.activity) === v ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <label class="fld">TDEE จากเครื่องชั่ง/ที่วัดเอง (kcal) — ใส่เพื่อแทนค่าที่คำนวณ ไม่ใส่ก็ได้<input data-f="tdeeOverride" type="number" inputmode="decimal" min="800" max="6000" value="${esc(p.tdeeOverride)}"></label>
     <div class="grid2">
@@ -637,39 +856,71 @@ function renderProfile() {
     <label class="fld">ชื่อโมเดล<input data-s="model" list="modelList" value="${esc(s.model)}"><datalist id="modelList">${(s.models || []).map(m => `<option value="${esc(m)}">`).join("")}</datalist></label>
     <button class="btn" data-act="loadmodels">ตรวจ key / โหลดรายชื่อโมเดล</button>
     <label class="check"><input type="checkbox" data-sc="autoCoach" ${s.autoCoach !== false ? "checked" : ""}><span>ให้โค้ช AI สรุปคำแนะนำอัตโนมัติทุกครั้งหลังบันทึกมื้ออาหาร/ออกกำลังกาย</span></label>
-    <div class="notice" style="margin-top:12px">key เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น (Local Storage) · เมื่อวิเคราะห์ รูปที่ย่อแล้วจะถูกส่งไปให้ Google · โค้ช AI ส่งข้อมูลร่างกาย เป้าหมาย และสรุปของวันนั้นไปให้ Google เพื่อขอคำแนะนำ · ค่าจาก AI เป็นค่าประมาณ แก้ไขได้ก่อนบันทึก<br>
+    <div class="notice" style="margin-top:12px">key เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น (Local Storage) · เมื่อวิเคราะห์ รูปที่ย่อแล้วจะถูกส่งไปให้ Google · โค้ช AI ส่งข้อมูลร่างกาย เป้าหมาย และสรุปของช่วงนั้นไปให้ Google เพื่อขอคำแนะนำ · ค่าจาก AI เป็นค่าประมาณ แก้ไขได้ก่อนบันทึก<br>
     รับ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></div>
   </div>
   <div class="card"><h2>สำรอง / ย้ายข้อมูล</h2>
-    <div class="grid2"><button class="btn" data-act="export">⬇️ Export (.json)</button><button class="btn" data-act="import">⬆️ Import</button></div>
-    <div class="notice">ข้อมูลอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่ sync ข้ามเครื่อง · <b>iPhone:</b> ใช้ Safari → ปุ่มแชร์ → "เพิ่มไปยังหน้าจอโฮม" เพื่อไม่ให้ iOS ลบข้อมูลเมื่อไม่ได้เปิดนาน และควร Export สำรองสัปดาห์ละครั้ง (ไฟล์สำรองไม่รวม API key)</div>
+    <div class="grid2"><button class="btn" data-act="export">⬇️ สำรอง (.json)</button><button class="btn" data-act="import">⬆️ นำเข้า</button></div>
+    <div class="sub">เปิดใน Excel</div>
+    <div class="grid2"><button class="btn" data-act="csvdaily">📄 CSV สรุปรายวัน</button><button class="btn" data-act="csvitems">📄 CSV รายการอาหาร</button></div>
+    <div class="notice">ข้อมูลอยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่ sync ข้ามเครื่อง · <b>iPhone:</b> ใช้ Safari → ปุ่มแชร์ → "เพิ่มไปยังหน้าจอโฮม" เพื่อไม่ให้ iOS ลบข้อมูลเมื่อไม่ได้เปิดนาน และควรสำรองสัปดาห์ละครั้ง (ไฟล์สำรองไม่รวม API key)</div>
     <button class="btn danger block" data-act="clear">ลบบันทึกอาหารและออกกำลังกายทั้งหมด</button></div>`;
 }
 
 /* ============ render: modal ============ */
 const totalHtml = t => `<div class="kv"><b>รวมมื้อนี้</b><b>${r0(t.kcal)} kcal</b><span class="muted">โปรตีน / ไขมัน / คาร์บ</span><span>${r0(t.p)} / ${r0(t.f)} / ${r0(t.c)} g</span></div><div class="muted small" style="margin-top:4px">${extrasLine(t)}</div>`;
+function recentMeals() {
+  const out = [], seen = new Set();
+  Object.keys(state.log).sort().reverse().slice(0, 14).forEach(d => state.log[d].slice().sort(byTime).reverse().forEach(m => {
+    const name = mealName(m); if (seen.has(name) || out.length >= 6) return;
+    seen.add(name); out.push({ d, m, name });
+  }));
+  return out;
+}
+const miniT = t => `${r0(t.kcal)} kcal · P ${r0(t.p)} · F ${r0(t.f)} · C ${r0(t.c)}`;
 function chooseHtml() {
+  const favs = state.fav, rec = recentMeals();
   return `<div class="row between"><h2 style="margin:0">เพิ่มบันทึก</h2><button class="icon-btn" data-act="cancel" aria-label="ปิด">✕</button></div>
     <div class="sub">🍽️ อาหาร</div>
     <button class="btn primary block" data-act="pick" data-mode="food" data-cam="1" style="margin-bottom:8px">📷 ถ่ายรูปอาหาร</button>
-    <div class="grid2" style="margin-bottom:8px"><button class="btn" data-act="pick" data-mode="food">🖼️ เลือกรูป</button><button class="btn" data-act="manual" data-mode="food">✍️ กรอก/พิมพ์</button></div>
+    <div class="grid3"><button class="btn" data-act="pick" data-mode="food">🖼️ เลือกรูป</button><button class="btn" data-act="pick" data-mode="label">🏷️ ฉลาก</button><button class="btn" data-act="manual" data-mode="food">✍️ พิมพ์</button></div>
+    <div class="muted small" style="margin-top:6px">เลือกได้สูงสุด ${MAX_IMG} รูปต่อมื้อ · "ฉลาก" = ถ่ายฉลากโภชนาการข้างกล่อง ให้ AI อ่านตัวเลขโดยตรง</div>
+    ${favs.length ? `<details ${favs.length <= 4 ? "open" : ""}><summary>⭐ เมนูประจำ (${favs.length})</summary>${favs.map(f =>
+      `<div class="favrow"><button class="btn left grow" data-act="usefav" data-id="${f.id}">${esc(f.name)}<br><span class="muted small">${miniT(itemsTotals(f.items))}</span></button><button class="icon-btn" data-act="delfav" data-id="${f.id}" aria-label="ลบเมนูประจำ ${esc(f.name)}">✕</button></div>`).join("")}</details>` : ""}
+    ${rec.length ? `<details><summary>🕘 เพิ่มซ้ำจากมื้อล่าสุด</summary>${rec.map(r =>
+      `<div class="favrow"><button class="btn left grow" data-act="usemeal" data-date="${r.d}" data-id="${r.m.id}">${esc(r.name)}<br><span class="muted small">${fmtShort(r.d)} · ${miniT(mealTotals(r.m))}</span></button></div>`).join("")}</details>` : ""}
     <div class="sub">🏃 ออกกำลังกาย (รูปหน้าจอลู่วิ่ง/นาฬิกา/ตารางเวท หรือพิมพ์เอง)</div>
-    <button class="btn block" data-act="pick" data-mode="ex" data-cam="1" style="margin-bottom:8px">📷 ถ่ายรูปหน้าจอ/ตารางเวท</button>
-    <div class="grid2"><button class="btn" data-act="pick" data-mode="ex">🖼️ เลือกรูป</button><button class="btn" data-act="manual" data-mode="ex">✍️ กรอก/พิมพ์</button></div>`;
+    <div class="grid3"><button class="btn" data-act="pick" data-mode="ex" data-cam="1">📷 ถ่ายรูป</button><button class="btn" data-act="pick" data-mode="ex">🖼️ เลือกรูป</button><button class="btn" data-act="manual" data-mode="ex">✍️ พิมพ์</button></div>
+    <div class="sub">⚖️ ร่างกาย</div>
+    <button class="btn block" data-act="addbody">บันทึกน้ำหนัก / %FAT</button>`;
 }
 function renderModal() {
   const d = state.draft, el = $("#modal");
   if (!d) { el.innerHTML = ""; return; }
+  const shots = d.images && d.images.length ? d.images : (d.thumb ? [d.thumb] : []);
+  const canAdd = d.images && d.images.length < MAX_IMG;
   const head = title => `<div class="row between"><h2 style="margin:0">${title}</h2><button class="icon-btn" data-act="cancel" aria-label="ปิด">✕</button></div>
-      ${d.thumb ? `<img class="preview" src="${esc(d.preview || d.thumb)}" alt="รูปที่เลือก" style="margin-top:10px">` : ""}
+      ${shots.length === 1 ? `<img class="preview" src="${esc(shots[0])}" alt="รูปที่เลือก">` : shots.length ? `<div class="pstrip">${shots.map((s, i) =>
+        `<div class="pimg"><img src="${esc(s)}" alt="รูปที่ ${i + 1}"><button data-act="rmimg" data-i="${i}" aria-label="ลบรูปที่ ${i + 1}">✕</button></div>`).join("")}</div>` : ""}
+      ${canAdd ? `<button class="btn small" data-act="pick" data-mode="append" style="margin-top:8px">＋ เพิ่มรูป (${d.images.length}/${MAX_IMG})</button>` : ""}
       ${d.status === "analyzing" ? `<div class="notice"><span class="spinner"></span>กำลังให้ Gemini วิเคราะห์...</div>` : ""}
       ${d.error ? `<div class="notice warn">${esc(d.error)}<br><span class="small">กรอกเองด้านล่างได้</span></div>` : ""}
-      ${d.notes ? `<div class="notice small">${esc(d.notes)}${d.confidence ? " · ความมั่นใจ: " + esc(d.confidence) : ""}</div>` : ""}`;
-  const footer = `<label class="fld">เวลา<input data-d="time" type="time" value="${esc(d.time)}"></label>
-      <div class="row"><button class="btn ghost" data-act="cancel">ยกเลิก</button><button class="btn primary grow" data-act="save">บันทึก</button></div>`;
+      ${d.notes ? `<div class="notice small">${esc(d.notes)}${d.confidence ? " · ความมั่นใจ: " + esc(d.confidence) : ""}</div>` : ""}
+      ${d.range ? `<div class="notice small">ช่วงที่เป็นไปได้ของมื้อนี้ ≈ <b>${d.range.low}–${d.range.high} kcal</b> · แอปใช้ค่ากลาง แก้ตัวเลขด้านล่างได้ถ้าคุณรู้ปริมาณจริง</div>` : ""}`;
+  const buttons = `<div class="row"><button class="btn ghost" data-act="cancel">ยกเลิก</button><button class="btn primary grow" data-act="save">บันทึก</button></div>`;
   let body;
   if (d.kind === "choose") body = chooseHtml();
-  else if (d.kind === "ex") {
+  else if (d.kind === "share") {
+    body = `<div class="row between"><h2 style="margin:0">สรุปวันนี้</h2><button class="icon-btn" data-act="cancel" aria-label="ปิด">✕</button></div>
+      <p class="muted small">คัดลอกข้อความด้านล่างไปวางใน LINE ได้เลย</p><textarea readonly style="min-height:260px">${esc(d.text)}</textarea>`;
+  } else if (d.kind === "body") {
+    const es = bodyEntries(), last = es[es.length - 1];
+    body = `<div class="row between"><h2 style="margin:0">⚖️ บันทึกน้ำหนัก / %FAT</h2><button class="icon-btn" data-act="cancel" aria-label="ปิด">✕</button></div>
+      <label class="fld" style="margin-top:10px">วันที่<input data-d="bdate" type="date" max="${dateKey()}" value="${esc(d.bdate)}"></label>
+      <div class="grid2"><label class="fld">น้ำหนัก (kg)<input data-d="bw" type="number" inputmode="decimal" step="0.1" placeholder="${last && last.w ? last.w : ""}" value="${esc(d.bw)}"></label>
+      <label class="fld">%FAT<input data-d="bbf" type="number" inputmode="decimal" step="0.1" placeholder="${last && last.bf ? last.bf : ""}" value="${esc(d.bbf)}"></label></div>
+      <div class="notice small">ชั่งเวลาเดิมทุกครั้ง (เช่น ตอนเช้าหลังเข้าห้องน้ำ) · ถ้าเป็นค่าล่าสุด แอปจะอัปเดตน้ำหนัก/%FAT ในโปรไฟล์ และคำนวณเป้าแคลอรี่ใหม่ให้</div>` + buttons;
+  } else if (d.kind === "ex") {
     body = head(d.id ? "แก้ไขการออกกำลังกาย" : "บันทึกการออกกำลังกาย") + `
       <label class="fld" style="margin-top:10px">คำอธิบาย (เช่น "วิ่ง 30 นาที 5 กม." หรือ "เวทหน้าอก: Bench 4x10 60kg, Incline DB 3x12 20kg")<textarea data-d="hint" placeholder="ไม่ใส่ก็ได้ ถ้ามีรูป">${esc(d.hint || "")}</textarea></label>
       <button class="btn block" data-act="analyze" ${d.status === "analyzing" ? "disabled" : ""} style="margin-bottom:14px">🔄 ให้ AI สรุป/ประเมินแคลอรี่</button>
@@ -677,12 +928,13 @@ function renderModal() {
       <label class="fld">ชื่อกิจกรรม<input data-d="name" placeholder="เช่น วิ่งลู่วิ่ง / เวทหน้าอก" value="${esc(d.name)}"></label>
       <div class="grid2"><label class="fld">เวลา (นาที)<input data-d="minutes" type="number" inputmode="decimal" value="${esc(d.minutes || "")}"></label>
       <label class="fld">เผาผลาญ (kcal)<input data-d="kcal" type="number" inputmode="decimal" value="${esc(d.kcal || "")}"></label></div>
-      <label class="fld">รายละเอียด (ท่า/เซ็ต/ระยะทาง)<textarea data-d="detail">${esc(d.detail || "")}</textarea></label>` + footer;
+      <label class="fld">รายละเอียด (ท่า/เซ็ต/ระยะทาง)<textarea data-d="detail">${esc(d.detail || "")}</textarea></label>
+      <label class="fld">เวลา<input data-d="time" type="time" value="${esc(d.time)}"></label>` + buttons;
   } else {
-    const tot = mealTotals(d);
-    body = head(d.id ? "แก้ไขมื้ออาหาร" : "บันทึกมื้ออาหาร") + `
-      <label class="fld" style="margin-top:10px">คำอธิบายเพิ่มเติมให้ AI (เช่น "ข้าวผัดกะเพราไก่ ไข่ดาว ไม่ใส่น้ำตาล")<textarea data-d="hint" placeholder="ไม่ใส่ก็ได้">${esc(d.hint || "")}</textarea></label>
-      <button class="btn block" data-act="analyze" ${d.status === "analyzing" ? "disabled" : ""} style="margin-bottom:14px">🔄 ${d.items.length && d.items.some(i => i.name) ? "วิเคราะห์ใหม่" : "ให้ AI วิเคราะห์"}</button>
+    const tot = mealTotals(d), isLabel = d.mode === "label";
+    body = head(d.id ? "แก้ไขมื้ออาหาร" : isLabel ? "บันทึกจากฉลากโภชนาการ" : "บันทึกมื้ออาหาร") + `
+      <label class="fld" style="margin-top:10px">${isLabel ? 'กินไปเท่าไหร่ (เช่น "ทั้งกล่อง" "ครึ่งซอง" "2 หน่วยบริโภค") ไม่ใส่ = 1 หน่วยบริโภค' : 'คำอธิบายเพิ่มเติมให้ AI (เช่น "ข้าวผัดกะเพราไก่ ไข่ดาว ไม่ใส่น้ำตาล" หรือ "กินครึ่งจาน")'}<textarea data-d="hint" placeholder="ไม่ใส่ก็ได้">${esc(d.hint || "")}</textarea></label>
+      <button class="btn block" data-act="analyze" ${d.status === "analyzing" ? "disabled" : ""} style="margin-bottom:14px">🔄 ${d.items.some(i => i.name) ? "วิเคราะห์ใหม่" : "ให้ AI วิเคราะห์"}</button>
       <h2>รายการอาหาร</h2>
       ${d.items.map((it, i) => `<div class="item">
         <div class="row"><div class="grow"><input data-i="${i}" data-k="name" placeholder="ชื่ออาหาร" value="${esc(it.name)}" aria-label="ชื่ออาหาร"></div>
@@ -699,8 +951,10 @@ function renderModal() {
           <label>น้ำตาล g<input data-i="${i}" data-k="sug" type="number" inputmode="decimal" step="0.1" value="${esc(it.sug ?? 0)}"></label>
           <label>โซเดียม mg<input data-i="${i}" data-k="na" type="number" inputmode="decimal" value="${esc(it.na ?? 0)}"></label>
         </div></div>`).join("")}
-      <button class="btn block" data-act="additem" style="margin-bottom:12px">＋ เพิ่มรายการ</button>
-      <div class="card" id="draftTotal">${totalHtml(tot)}</div>` + footer;
+      <div class="grid2" style="margin-bottom:12px"><button class="btn" data-act="additem">＋ เพิ่มรายการ</button><button class="btn" data-act="savefav">⭐ เก็บเป็นเมนูประจำ</button></div>
+      <div class="card" id="draftTotal">${totalHtml(tot)}</div>
+      <div class="grid2"><label class="fld">เวลา<input data-d="time" type="time" value="${esc(d.time)}"></label>
+      <label class="fld">มื้อ<select data-d="mtype">${MTYPES.map(([k, ic, l]) => `<option value="${k}" ${d.mtype === k ? "selected" : ""}>${ic} ${l}</option>`).join("")}</select></label></div>` + buttons;
   }
   el.innerHTML = `<div class="overlay" data-act="overlay"><div class="sheet" role="dialog" aria-modal="true">${body}</div></div>`;
 }
@@ -713,25 +967,27 @@ function render() {
 
 /* ============ actions ============ */
 const blankItem = () => ({ name: "", portion: "", kcal: 0, p: 0, f: 0, c: 0, fib: 0, sug: 0, na: 0 });
+const cleanItems = items => items.filter(i => String(i.name).trim() || num(i.kcal) > 0).map(i => ({ name: String(i.name).trim(), portion: String(i.portion || "").trim(), kcal: r0(num(i.kcal)), p: r1(num(i.p)), f: r1(num(i.f)), c: r1(num(i.c)), fib: r1(num(i.fib)), sug: r1(num(i.sug)), na: r0(num(i.na)) }));
 function openDraft(kind, extra) {
-  const base = { kind, hint: "", time: timeNow(), thumb: "", preview: "", dataUrl: "", status: "", error: "", notes: "", confidence: "", date: state.date };
-  state.draft = Object.assign(base, kind === "ex" ? { type: "cardio", name: "", minutes: 0, kcal: 0, detail: "" } : { items: [] }, extra);
+  const time = timeNow();
+  const base = { kind, hint: "", time, thumb: "", images: [], mode: "", status: "", error: "", notes: "", confidence: "", range: null, date: state.date };
+  state.draft = Object.assign(base, kind === "ex" ? { type: "cardio", name: "", minutes: 0, kcal: 0, detail: "" } : { items: [], mtype: typeFromTime(time), typeTouched: false }, extra);
   renderModal();
 }
 async function runAnalysis() {
-  const d = state.draft; if (!d || d.kind === "choose") return;
-  if (!d.dataUrl && !d.thumb && !d.hint.trim()) { d.error = "ใส่รูปหรือพิมพ์คำอธิบายก่อนให้ AI วิเคราะห์"; renderModal(); return; }
+  const d = state.draft; if (!d || (d.kind !== "food" && d.kind !== "ex")) return;
+  const imgs = d.images.length ? d.images : (d.thumb ? [d.thumb] : []);
+  if (!imgs.length && !d.hint.trim()) { d.error = "ใส่รูปหรือพิมพ์คำอธิบายก่อนให้ AI วิเคราะห์"; renderModal(); return; }
   d.status = "analyzing"; d.error = ""; renderModal();
   try {
-    const src = d.dataUrl || d.thumb;
     if (d.kind === "ex") {
-      const r = await analyzeExercise(src, d.hint.trim());
+      const r = await analyzeExercise(imgs, d.hint.trim());
       if (state.draft !== d) return;
       Object.assign(d, { type: r.type, name: r.name, minutes: r.minutes, kcal: r.kcal, detail: r.detail, notes: r.notes });
     } else {
-      const r = await analyzeFood(src, d.hint.trim());
+      const r = await analyzeFood(imgs, d.hint.trim(), d.mode);
       if (state.draft !== d) return;
-      d.items = r.items; d.notes = r.notes; d.confidence = r.confidence;
+      d.items = r.items; d.notes = r.notes; d.confidence = r.confidence; d.range = r.range;
     }
   } catch (e) {
     if (state.draft !== d) return;
@@ -739,15 +995,25 @@ async function runAnalysis() {
   }
   d.status = ""; renderModal();
 }
-async function onFile(file) {
-  if (!file) return;
-  const mode = state.pickMode === "ex" ? "ex" : "food";
+async function onFiles(fileList) {
+  const files = [...(fileList || [])].slice(0, MAX_IMG); if (!files.length) return;
+  const mode = state.pickMode;
   try {
-    const img = await loadImage(file);
-    const big = scaled(img, 1024, 0.85), thumb = scaled(img, 200, 0.55);
-    openDraft(mode === "ex" ? "ex" : "food", { dataUrl: big, thumb, preview: big, items: mode === "ex" ? undefined : [] });
+    const imgs = []; for (const f of files) imgs.push(await loadImage(f));
+    const bigs = imgs.map(i => scaled(i, 1024, 0.85)), thumb = scaled(imgs[0], 200, 0.55);
+    const cur = state.draft;
+    if (mode === "append" && cur && (cur.kind === "food" || cur.kind === "ex")) {
+      const room = MAX_IMG - cur.images.length;
+      cur.images = cur.images.concat(bigs.slice(0, room));
+      if (!cur.thumb) cur.thumb = thumb;
+      cur.error = ""; renderModal();
+      toast(bigs.length > room ? `ใส่ได้สูงสุด ${MAX_IMG} รูป · กด "วิเคราะห์ใหม่" เพื่อให้ AI ดูทุกรูป` : 'เพิ่มรูปแล้ว กด "วิเคราะห์ใหม่" เพื่อให้ AI ดูทุกรูป');
+      return;
+    }
+    const kind = mode === "ex" ? "ex" : "food";
+    openDraft(kind, { images: bigs, thumb, mode: mode === "label" ? "label" : "" });
     if (!state.settings.key) {
-      if (mode === "food") state.draft.items = [blankItem()];
+      if (kind === "food") state.draft.items = [blankItem()];
       state.draft.error = "ยังไม่ได้ใส่ Gemini API key (แท็บโปรไฟล์) — กรอกเองได้ หรือใส่ key แล้วกด 'ให้ AI วิเคราะห์'"; renderModal(); return;
     }
     runAnalysis();
@@ -755,6 +1021,17 @@ async function onFile(file) {
 }
 function saveDraft() {
   const d = state.draft;
+  if (d.kind === "body") {
+    const w = num(d.bw), bf = num(d.bbf), date = d.bdate || dateKey();
+    if (!(w > 0) && !(bf > 0)) { toast("ใส่น้ำหนักหรือ %FAT อย่างน้อยหนึ่งค่า"); return; }
+    if (w > 400 || bf >= 70) { toast("ค่าดูไม่ถูกต้อง ตรวจสอบอีกครั้ง"); return; }
+    state.body[date] = { w: w > 0 ? r1(w) : 0, bf: bf > 0 ? r1(bf) : 0 };
+    persist(K.body, state.body);
+    const latest = Object.keys(state.body).sort().pop() === date;
+    if (latest) { if (w > 0) state.profile.weight = r1(w); if (bf > 0) state.profile.bf = r1(bf); store.set(K.profile, state.profile); }
+    state.draft = null; renderModal(); render(); toast(latest ? "บันทึกแล้ว · อัปเดตเป้าหมายตามค่าล่าสุด" : "บันทึกแล้ว");
+    return;
+  }
   if (d.kind === "ex") {
     const e = { id: d.id || uid(), time: d.time || timeNow(), type: d.type, name: String(d.name).trim(), minutes: r0(num(d.minutes)), kcal: r0(num(d.kcal)), detail: String(d.detail).trim(), thumb: d.thumb };
     if (!e.name && !e.minutes && !e.detail) { toast("ใส่ชื่อ เวลา หรือรายละเอียดอย่างน้อยหนึ่งอย่าง"); return; }
@@ -762,32 +1039,26 @@ function saveDraft() {
     const idx = list.findIndex(x => x.id === e.id); if (idx >= 0) list[idx] = e; else list.push(e);
     saveEx();
   } else {
-    const items = d.items.filter(i => i.name.trim() || num(i.kcal) > 0).map(i => ({ name: i.name.trim(), portion: i.portion.trim(), kcal: r0(num(i.kcal)), p: r1(num(i.p)), f: r1(num(i.f)), c: r1(num(i.c)), fib: r1(num(i.fib)), sug: r1(num(i.sug)), na: r0(num(i.na)) }));
+    const items = cleanItems(d.items);
     if (!items.length) { toast("ยังไม่มีรายการอาหาร"); return; }
-    const meal = { id: d.id || uid(), time: d.time || timeNow(), thumb: d.thumb, items };
+    const meal = { id: d.id || uid(), time: d.time || timeNow(), type: MT[d.mtype] ? d.mtype : typeFromTime(d.time), thumb: d.thumb, items };
     const list = state.log[d.date] || (state.log[d.date] = []);
     const idx = list.findIndex(m => m.id === meal.id); if (idx >= 0) list[idx] = meal; else list.push(meal);
     saveLog();
   }
   state.draft = null; renderModal(); render(); toast("บันทึกแล้ว");
-  if (state.settings.autoCoach !== false && state.settings.key) runCoach(d.date, true);
-}
-function exportData() {
-  const data = { app: "foodapp", v: 2, exported: new Date().toISOString(), profile: state.profile, log: state.log, ex: state.ex, coach: state.coach };
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
-  a.download = `foodapp-backup-${dateKey()}.json`; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  if (state.settings.autoCoach !== false && state.settings.key) coachDay(d.date, true);
 }
 function shiftReport(dir) {
   const R = state.rep, dt = parseKey(R.anchor);
   R.anchor = R.range === "week" ? shiftDate(R.anchor, 7 * dir) : dateKey(new Date(dt.getFullYear(), dt.getMonth() + dir, 1));
 }
+const copyItems = items => items.map(i => Object.assign(blankItem(), i));
 
 document.addEventListener("click", async e => {
   const t = e.target.closest("[data-act]"); if (!t) return;
-  const a = t.dataset.act;
-  if (a === "overlay") { if (e.target === t && state.draft && state.draft.kind === "choose") { state.draft = null; renderModal(); } return; }
+  const a = t.dataset.act, d = state.draft;
+  if (a === "overlay") { if (e.target === t && d && (d.kind === "choose" || d.kind === "share")) { state.draft = null; renderModal(); } return; }
   if (a === "tab") { state.tab = t.dataset.tab; render(); window.scrollTo(0, 0); }
   else if (a === "day") { state.date = shiftDate(state.date, +t.dataset.d); render(); }
   else if (a === "gotoday") { state.date = dateKey(); render(); }
@@ -799,16 +1070,34 @@ document.addEventListener("click", async e => {
   else if (a === "manual") { if (t.dataset.mode === "ex") openDraft("ex"); else openDraft("food", { items: [blankItem()] }); }
   else if (a === "cancel") { state.draft = null; renderModal(); }
   else if (a === "analyze") runAnalysis();
-  else if (a === "additem") { state.draft.items.push(blankItem()); renderModal(); }
-  else if (a === "rmitem") { state.draft.items.splice(+t.dataset.i, 1); renderModal(); }
+  else if (a === "additem") { d.items.push(blankItem()); renderModal(); }
+  else if (a === "rmitem") { d.items.splice(+t.dataset.i, 1); renderModal(); }
+  else if (a === "rmimg") {
+    if (d.images.length) { d.images.splice(+t.dataset.i, 1); if (!d.images.length && !d.id) d.thumb = ""; } else d.thumb = "";
+    renderModal();
+  }
   else if (a === "save") saveDraft();
+  else if (a === "savefav") {
+    const items = cleanItems(d.items);
+    if (!items.length) { toast("ยังไม่มีรายการอาหารให้เก็บ"); return; }
+    const name = items.map(i => i.name).filter(Boolean).join(", ").slice(0, 80) || "เมนูประจำ";
+    const i = state.fav.findIndex(f => f.name === name), fav = { id: i >= 0 ? state.fav[i].id : uid(), name, items };
+    if (i >= 0) state.fav[i] = fav; else state.fav.unshift(fav);
+    persist(K.fav, state.fav); toast(i >= 0 ? "อัปเดตเมนูประจำแล้ว" : "เก็บเป็นเมนูประจำแล้ว · เรียกใช้ได้จากปุ่ม ＋");
+  }
+  else if (a === "usefav") { const f = state.fav.find(x => x.id === t.dataset.id); if (f) openDraft("food", { items: copyItems(f.items) }); }
+  else if (a === "delfav") {
+    if (!confirm("ลบเมนูประจำนี้?")) return;
+    state.fav = state.fav.filter(x => x.id !== t.dataset.id); persist(K.fav, state.fav); renderModal();
+  }
+  else if (a === "usemeal") { const m = (state.log[t.dataset.date] || []).find(x => x.id === t.dataset.id); if (m) openDraft("food", { items: copyItems(m.items) }); }
   else if (a === "edit") {
     const m = (state.log[state.date] || []).find(x => x.id === t.dataset.id); if (!m) return;
-    openDraft("food", { id: m.id, time: m.time, thumb: m.thumb || "", preview: m.thumb || "", items: m.items.map(i => Object.assign(blankItem(), i)) });
+    openDraft("food", { id: m.id, time: m.time, thumb: m.thumb || "", items: copyItems(m.items), mtype: mealType(m), typeTouched: true });
   }
   else if (a === "editex") {
     const x = (state.ex[state.date] || []).find(v => v.id === t.dataset.id); if (!x) return;
-    openDraft("ex", { id: x.id, time: x.time, thumb: x.thumb || "", preview: x.thumb || "", type: x.type, name: x.name, minutes: x.minutes, kcal: x.kcal, detail: x.detail });
+    openDraft("ex", { id: x.id, time: x.time, thumb: x.thumb || "", type: x.type, name: x.name, minutes: x.minutes, kcal: x.kcal, detail: x.detail });
   }
   else if (a === "del") {
     if (!confirm("ลบมื้อนี้?")) return;
@@ -822,12 +1111,21 @@ document.addEventListener("click", async e => {
     if (!state.ex[state.date].length) delete state.ex[state.date];
     saveEx(); render();
   }
+  else if (a === "addbody") { state.draft = { kind: "body", bdate: dateKey(), bw: "", bbf: "" }; renderModal(); }
+  else if (a === "delbody") {
+    if (!confirm(`ลบค่าน้ำหนัก/%FAT ของวันที่ ${fmtShort(t.dataset.date)}?`)) return;
+    delete state.body[t.dataset.date]; persist(K.body, state.body); render();
+  }
+  else if (a === "coach") coachDay(state.date, false);
+  else if (a === "coachp") coachPeriod();
+  else if (a === "share") shareDay();
   else if (a === "clear") {
-    if (!confirm("ลบบันทึกอาหารและออกกำลังกายทั้งหมดถาวร? (ไม่ลบโปรไฟล์) ย้อนกลับไม่ได้ — แนะนำ Export สำรองก่อน")) return;
+    if (!confirm("ลบบันทึกอาหารและออกกำลังกายทั้งหมดถาวร? (ไม่ลบโปรไฟล์ น้ำหนัก และเมนูประจำ) ย้อนกลับไม่ได้ — แนะนำสำรองก่อน")) return;
     state.log = {}; state.ex = {}; state.coach = {}; saveLog(); saveEx(); persist(K.coach, state.coach); render(); toast("ลบแล้ว");
   }
-  else if (a === "coach") runCoach(state.date, false);
   else if (a === "export") exportData();
+  else if (a === "csvdaily") download(`foodapp-daily-${dateKey()}.csv`, csvDaily(), "text/csv;charset=utf-8");
+  else if (a === "csvitems") download(`foodapp-items-${dateKey()}.csv`, csvItems(), "text/csv;charset=utf-8");
   else if (a === "import") { const inp = $("#fileImp"); inp.value = ""; inp.click(); }
   else if (a === "loadmodels") {
     t.disabled = true; const old = t.textContent; t.textContent = "กำลังโหลด...";
@@ -841,7 +1139,7 @@ document.addEventListener("click", async e => {
   }
 });
 document.addEventListener("input", e => {
-  const t = e.target;
+  const t = e.target, d = state.draft;
   if (t.dataset.f) {
     state.profile[t.dataset.f] = t.dataset.f === "activity" ? num(t.value) : t.value;
     store.set(K.profile, state.profile);
@@ -850,28 +1148,31 @@ document.addEventListener("input", e => {
     state.settings[t.dataset.sc] = t.checked; store.set(K.settings, state.settings);
   } else if (t.dataset.s) {
     state.settings[t.dataset.s] = t.value.trim(); store.set(K.settings, state.settings);
-  } else if (t.dataset.d && state.draft) {
-    const k = t.dataset.d; state.draft[k] = (k === "minutes" || k === "kcal") ? num(t.value) : t.value;
-  } else if (t.dataset.i !== undefined && state.draft) {
-    const it = state.draft.items[+t.dataset.i], k = t.dataset.k;
+  } else if (t.dataset.d && d) {
+    const k = t.dataset.d; d[k] = (k === "minutes" || k === "kcal") ? num(t.value) : t.value;
+    if (k === "mtype") d.typeTouched = true;
+    if (k === "time" && d.kind === "food" && !d.typeTouched) { d.mtype = typeFromTime(t.value); const sel = $('select[data-d="mtype"]'); if (sel) sel.value = d.mtype; }
+  } else if (t.dataset.i !== undefined && d) {
+    const it = d.items[+t.dataset.i], k = t.dataset.k;
     it[k] = (k === "name" || k === "portion") ? t.value : num(t.value);
     if (k === "p" || k === "f" || k === "c") {
       it.kcal = r0(it.p * 4 + it.c * 4 + it.f * 9);
       const kc = $(`input[data-i="${t.dataset.i}"][data-k="kcal"]`); if (kc) kc.value = it.kcal;
     }
-    const tt = $("#draftTotal"); if (tt) tt.innerHTML = totalHtml(mealTotals(state.draft));
+    const tt = $("#draftTotal"); if (tt) tt.innerHTML = totalHtml(mealTotals(d));
   }
 });
 document.addEventListener("change", e => { if (e.target.tagName === "SELECT") e.target.dispatchEvent(new Event("input", { bubbles: true })); });
-$("#fileCam").addEventListener("change", e => onFile(e.target.files[0]));
-$("#fileLib").addEventListener("change", e => onFile(e.target.files[0]));
+$("#fileCam").addEventListener("change", e => onFiles(e.target.files));
+$("#fileLib").addEventListener("change", e => onFiles(e.target.files));
 $("#fileImp").addEventListener("change", async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
     const j = JSON.parse(await f.text());
     if (!j || j.app !== "foodapp" || typeof j.log !== "object") throw new Error("bad");
-    if (!confirm("นำเข้าข้อมูลจากไฟล์สำรอง? ข้อมูลบันทึกอาหาร/ออกกำลังกายที่มีอยู่ในเครื่องนี้จะถูกแทนที่")) return;
-    state.log = j.log || {}; state.ex = j.ex || {}; state.coach = j.coach || {}; persist(K.coach, state.coach);
+    if (!confirm("นำเข้าข้อมูลจากไฟล์สำรอง? ข้อมูลในเครื่องนี้ (บันทึกอาหาร ออกกำลังกาย น้ำหนัก เมนูประจำ) จะถูกแทนที่")) return;
+    state.log = j.log || {}; state.ex = j.ex || {}; state.coach = j.coach || {}; state.body = j.body || {}; state.fav = Array.isArray(j.fav) ? j.fav : [];
+    persist(K.coach, state.coach); persist(K.body, state.body); persist(K.fav, state.fav);
     if (j.profile) { state.profile = Object.assign({}, DEFAULT_PROFILE, j.profile); store.set(K.profile, state.profile); }
     saveLog(); saveEx(); render(); toast("นำเข้าข้อมูลแล้ว");
   } catch (err) { toast("ไฟล์สำรองไม่ถูกต้อง"); }
