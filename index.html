@@ -56,6 +56,11 @@ input,select,textarea{
 }
 input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 textarea{resize:vertical;min-height:70px}
+input[type=checkbox]{width:22px;height:22px;min-height:22px;margin:0;padding:0;flex:none;accent-color:var(--accent)}
+label.check{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:.9rem;min-height:44px}
+.coach p{margin:8px 0}
+.coach ul{margin:2px 0 8px;padding-left:20px}
+.coach li{margin:3px 0;font-size:.93rem}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
@@ -155,7 +160,7 @@ function toast(msg) {
 }
 
 /* ============ store (localStorage, with in-memory fallback) ============ */
-const K = { profile: "foodapp.profile", settings: "foodapp.settings", log: "foodapp.log", ex: "foodapp.ex" };
+const K = { profile: "foodapp.profile", settings: "foodapp.settings", log: "foodapp.log", ex: "foodapp.ex", coach: "foodapp.coach" };
 const mem = {};
 const store = {
   get(k, d) {
@@ -214,6 +219,8 @@ const state = {
   settings: loadSettings(),
   log: store.get(K.log, {}),   // { date: [ {id,time,thumb,items:[{name,portion,kcal,p,f,c,fib,sug,na}]} ] }
   ex: store.get(K.ex, {}),     // { date: [ {id,time,type,name,minutes,kcal,detail,thumb} ] }
+  coach: store.get(K.coach, {}), // { date: {sig,at,headline,score,good[],improve[],next} }
+  coachBusy: null, coachTok: 0, coachErr: "", coachErrDate: "",
   draft: null,
   pickMode: "food"
 };
@@ -267,7 +274,7 @@ function gemError(status, msg) {
 /* โมเดลที่ทดสอบแล้วว่าอ่านรูป+ตอบ JSON ภาษาไทยได้ (เรียงตามความชอบ) — ถ้าตัวแรกยุ่ง/ถูกยกเลิก แอปจะลองตัวถัดไปเอง */
 function modelPrefs() { return ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-3.6-flash"]; }
 function loadSettings() {
-  const s = Object.assign({ key: "", model: "", models: [] }, store.get(K.settings, {}));
+  const s = Object.assign({ key: "", model: "", models: [], autoCoach: true }, store.get(K.settings, {}));
   if (s.v !== 3 || !s.model) { s.model = modelPrefs()[0]; s.v = 3; }  // รีเซ็ตโมเดลเก่าที่ถูกยกเลิก
   return s;
 }
@@ -376,6 +383,82 @@ async function loadModels() {
     .map(m => m.name.replace(/^models\//, ""));
 }
 
+/* ============ coach (AI trainer feedback per day) ============ */
+const byTime = (a, b) => (a.time || "").localeCompare(b.time || "");
+function daySig(d) {
+  const t = dayTotals(d), e = exTotals(d), g = compute(state.profile);
+  return [r0(t.kcal), r0(t.p), r0(t.f), r0(t.c), (state.log[d] || []).length, e.n, r0(e.min), r0(e.kcal), g ? g.kcal : 0].join("|");
+}
+function coachPrompt(d) {
+  const p = state.profile, g = compute(p), t = dayTotals(d), e = exTotals(d), today = d === dateKey();
+  const meals = (state.log[d] || []).slice().sort(byTime).map(m => {
+    const mt = mealTotals(m);
+    return `- ${m.time || "?"} ${m.items.map(i => i.name + (i.portion ? ` (${i.portion})` : "")).join(", ")} → ${r0(mt.kcal)} kcal, โปรตีน ${r0(mt.p)} g, ไขมัน ${r0(mt.f)} g, คาร์บ ${r0(mt.c)} g`;
+  });
+  const exs = (state.ex[d] || []).slice().sort(byTime).map(x =>
+    `- ${x.time || "?"} ${(EXTYPE[x.type] || EXTYPE.other)[1]}: ${x.name || ""} ${r0(num(x.minutes))} นาที ~${r0(num(x.kcal))} kcal${x.detail ? " (" + String(x.detail).replace(/\s+/g, " ").slice(0, 200) + ")" : ""}`);
+  const prev = []; for (let i = 1; i <= 7; i++) prev.push(shiftDate(d, -i));
+  const pl = prev.filter(x => (state.log[x] || []).length);
+  const pt = pl.reduce((a, x) => addT(a, dayTotals(x)), zeroT());
+  const pe = prev.reduce((a, x) => { const v = exTotals(x); a.c += v.cn; a.w += v.wn; return a; }, { c: 0, w: 0 });
+  const who = [p.sex === "female" ? "หญิง" : "ชาย", num(p.age) ? `อายุ ${num(p.age)} ปี` : "", num(p.height) ? `สูง ${num(p.height)} cm` : "", num(p.weight) ? `หนัก ${num(p.weight)} kg` : "",
+    num(p.bf) ? `ไขมัน ${num(p.bf)}%` : "", num(p.targetBf) ? `เป้าหมายไขมัน ${num(p.targetBf)}%` : ""].filter(Boolean).join(", ");
+  const L = [
+    "คุณเป็นเทรนเนอร์และนักโภชนาการส่วนตัวของผู้ใช้ พูดภาษาไทยแบบเป็นกันเอง กระชับ ตรงประเด็น ให้กำลังใจแต่พูดความจริง เป้าหมายของผู้ใช้คือลด %ไขมันโดยรักษากล้ามเนื้อ",
+    "ผู้ใช้: " + who,
+    g ? `เป้าหมายต่อวัน: ${g.kcal} kcal, โปรตีน ${g.protein} g, ไขมัน ${g.fat} g, คาร์บ ${g.carb} g | TDEE ${r0(g.tdee)} kcal${g.bmr ? `, BMR ${r0(g.bmr)} kcal` : ""}` : "ผู้ใช้ยังไม่ได้ตั้งเป้าหมาย ให้ประเมินตามหลักทั่วไปและแนะนำให้กรอกโปรไฟล์",
+    `วันที่ประเมิน: ${fmtDate(d)} ${today ? `(ตอนนี้เวลา ${timeNow()} วันอาจยังไม่จบ)` : "(วันนี้จบไปแล้ว เป็นการดูย้อนหลัง)"}`,
+    "มื้ออาหารที่บันทึก:", meals.length ? meals.join("\n") : "- ยังไม่มี",
+    `รวมที่กิน: ${r0(t.kcal)} kcal, โปรตีน ${r0(t.p)} g, ไขมัน ${r0(t.f)} g, คาร์บ ${r0(t.c)} g, ใยอาหาร ${r0(t.fib)} g, น้ำตาล ${r0(t.sug)} g, โซเดียม ${r0(t.na)} mg`,
+    "ออกกำลังกาย:", exs.length ? exs.join("\n") : "- ไม่มี",
+    pl.length ? `7 วันก่อนหน้า: บันทึกอาหาร ${pl.length} วัน เฉลี่ย ${r0(pt.kcal / pl.length)} kcal, โปรตีน ${r0(pt.p / pl.length)} g ต่อวัน | คาร์ดิโอ ${pe.c} ครั้ง เวท ${pe.w} ครั้ง` : "7 วันก่อนหน้า: ยังไม่มีข้อมูล",
+    "หมายเหตุ: TDEE รวมกิจกรรมเฉลี่ยตามระดับกิจกรรมของผู้ใช้ไว้แล้ว และแคลอรี่จากการออกกำลังกายเป็นค่าประมาณ จึงอย่าบวกเพิ่มเต็มจำนวน ค่าโภชนาการทั้งหมดเป็นค่าประมาณจากรูป",
+    "ให้ตอบดังนี้: headline = สรุปวันนี้ 1 ประโยค ; score = คะแนน 0-100 ของวันนี้เทียบกับเป้าหมาย (ถ้าวันยังไม่จบ ให้คะแนนตามแนวโน้ม) ; " +
+    "good = 1-3 ข้อ สิ่งที่ทำได้ดี ; improve = 1-3 ข้อ สิ่งที่ขาดหรือเกิน พร้อมตัวเลข (เช่น โปรตีนขาดอีกกี่กรัม แคลอรี่เกินเท่าไหร่ สมดุลพลังงานเทียบ TDEE เป็นอย่างไร การออกกำลังกายช่วยได้แค่ไหน เวท/คาร์ดิโอพอไหม) ; " +
+    "next = คำแนะนำที่ทำได้ทันที 1-3 ประโยค: ถ้าวันยังไม่จบ บอกว่ามื้อถัดไปควรกินอะไรประมาณเท่าไหร่ ยกตัวอย่างอาหารไทยที่หาง่าย ; ถ้าวันจบแล้ว บอกสิ่งที่ควรปรับพรุ่งนี้ " +
+    "แต่ละข้อสั้นไม่เกิน 2 ประโยค ห้ามวินิจฉัยโรค และถ้ากินต่ำกว่า BMR มากให้เตือนว่าไม่ควรอดมากเกินไป"
+  ];
+  return L.join("\n");
+}
+const COACH_SCHEMA = { type: "OBJECT", properties: { headline: S, score: N, good: { type: "ARRAY", items: S }, improve: { type: "ARRAY", items: S }, next: S }, required: ["headline", "score", "good", "improve", "next"] };
+function refreshCoach() { const el = $("#coach"); if (el) el.innerHTML = coachHtml(state.date); }
+async function runCoach(d, auto) {
+  if (!state.settings.key) { if (!auto) toast("ใส่ Gemini API key ในแท็บโปรไฟล์ก่อน"); return; }
+  if (!(state.log[d] || []).length && !(state.ex[d] || []).length) { if (!auto) toast("ยังไม่มีข้อมูลของวันนี้ให้โค้ชดู"); return; }
+  const sig = daySig(d), tok = ++state.coachTok;
+  state.coachBusy = d; state.coachErr = ""; refreshCoach();
+  try {
+    const o = await gemJSON([{ text: coachPrompt(d) }], COACH_SCHEMA);
+    if (tok !== state.coachTok) return;   // มีคำขอใหม่กว่าแล้ว
+    const arr = a => (Array.isArray(a) ? a : []).map(x => String(x).trim()).filter(Boolean).slice(0, 4);
+    state.coach[d] = { sig, at: timeNow(), headline: String(o.headline || "").trim(), score: clamp(r0(num(o.score)), 0, 100), good: arr(o.good), improve: arr(o.improve), next: String(o.next || "").trim() };
+    persist(K.coach, state.coach);
+  } catch (e) {
+    if (tok !== state.coachTok) return;
+    state.coachErr = e.message; state.coachErrDate = d;
+  }
+  state.coachBusy = null; refreshCoach();
+}
+function coachHtml(d) {
+  const c = state.coach[d], busy = state.coachBusy === d;
+  const stale = c && c.sig !== daySig(d);
+  const li = a => (a || []).map(x => `<li>${esc(x)}</li>`).join("");
+  let h = `<div class="row between"><h2 style="margin:0">💬 โค้ช AI</h2>${c ? `<span class="chip"><b>${c.score}</b>/100</span>` : ""}</div>`;
+  if (busy) h += `<div class="notice"><span class="spinner"></span>โค้ชกำลังดูข้อมูลของวันนี้...</div>`;
+  if (!busy && state.coachErr && state.coachErrDate === d) h += `<div class="notice warn">${esc(state.coachErr)}</div>`;
+  if (c) {
+    h += `<div class="coach"><p><b>${esc(c.headline)}</b></p>
+      ${c.good.length ? `<div class="sub" style="color:var(--accent)">✅ ทำได้ดี</div><ul>${li(c.good)}</ul>` : ""}
+      ${c.improve.length ? `<div class="sub" style="color:var(--warn)">⚠️ ควรปรับ</div><ul>${li(c.improve)}</ul>` : ""}
+      ${c.next ? `<div class="notice"><b>ต่อไป:</b> ${esc(c.next)}</div>` : ""}
+      <div class="muted small">อัปเดตเมื่อ ${esc(c.at)}${stale ? " · ข้อมูลเปลี่ยนหลังจากนั้น" : ""} · คำแนะนำจาก AI เป็นแนวทางทั่วไป ไม่ใช่คำแนะนำทางการแพทย์</div></div>`;
+  } else if (!busy) {
+    h += `<p class="muted small" style="margin:8px 0">ให้โค้ชสรุปว่าวันนี้กินเป็นอย่างไร ขาดหรือเกินอะไร การออกกำลังกายช่วยได้แค่ไหน และมื้อต่อไปควรกินอะไร</p>`;
+  }
+  h += `<button class="btn block ${!c || stale ? "primary" : ""}" data-act="coach" ${busy ? "disabled" : ""} style="margin-top:8px">${c ? (stale ? "🔄 อัปเดตคำแนะนำ (ข้อมูลเปลี่ยน)" : "🔄 ขอคำแนะนำใหม่") : "ขอคำแนะนำจากโค้ช"}</button>`;
+  return h;
+}
+
 /* ============ render: today ============ */
 function ringSvg(cons, target) {
   const R = 54, C = 2 * Math.PI * R, pct = target > 0 ? Math.min(cons / target, 1) : 0, over = target > 0 && cons > target;
@@ -411,6 +494,7 @@ function renderToday() {
       ${macroBar("โปรตีน", tot.p, t.protein, "var(--p)")}${macroBar("ไขมัน", tot.f, t.fat, "var(--f)")}${macroBar("คาร์บ", tot.c, t.carb, "var(--c)")}
       <div class="muted small" style="margin-top:8px">${extrasLine(tot)}</div></div>`;
   }
+  h += `<div class="card" id="coach">${coachHtml(state.date)}</div>`;
   h += `<h2>มื้ออาหาร (${meals.length})</h2>`;
   if (!meals.length) h += `<div class="card empty">ยังไม่มีการบันทึก<br>กดปุ่ม ＋ เพื่อถ่ายรูปอาหาร</div>`;
   meals.slice().sort((a, b) => (a.time || "").localeCompare(b.time || "")).forEach(m => {
@@ -552,7 +636,8 @@ function renderProfile() {
     <label class="fld">API key<input data-s="key" type="password" autocomplete="off" placeholder="วาง key จาก Google AI Studio" value="${esc(s.key)}"></label>
     <label class="fld">ชื่อโมเดล<input data-s="model" list="modelList" value="${esc(s.model)}"><datalist id="modelList">${(s.models || []).map(m => `<option value="${esc(m)}">`).join("")}</datalist></label>
     <button class="btn" data-act="loadmodels">ตรวจ key / โหลดรายชื่อโมเดล</button>
-    <div class="notice" style="margin-top:12px">key เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น (Local Storage) · เมื่อวิเคราะห์ รูปที่ย่อแล้วจะถูกส่งไปให้ Google · ค่าจาก AI เป็นค่าประมาณ แก้ไขได้ก่อนบันทึก<br>
+    <label class="check"><input type="checkbox" data-sc="autoCoach" ${s.autoCoach !== false ? "checked" : ""}><span>ให้โค้ช AI สรุปคำแนะนำอัตโนมัติทุกครั้งหลังบันทึกมื้ออาหาร/ออกกำลังกาย</span></label>
+    <div class="notice" style="margin-top:12px">key เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น (Local Storage) · เมื่อวิเคราะห์ รูปที่ย่อแล้วจะถูกส่งไปให้ Google · โค้ช AI ส่งข้อมูลร่างกาย เป้าหมาย และสรุปของวันนั้นไปให้ Google เพื่อขอคำแนะนำ · ค่าจาก AI เป็นค่าประมาณ แก้ไขได้ก่อนบันทึก<br>
     รับ key ฟรีได้ที่ <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></div>
   </div>
   <div class="card"><h2>สำรอง / ย้ายข้อมูล</h2>
@@ -685,9 +770,10 @@ function saveDraft() {
     saveLog();
   }
   state.draft = null; renderModal(); render(); toast("บันทึกแล้ว");
+  if (state.settings.autoCoach !== false && state.settings.key) runCoach(d.date, true);
 }
 function exportData() {
-  const data = { app: "foodapp", v: 2, exported: new Date().toISOString(), profile: state.profile, log: state.log, ex: state.ex };
+  const data = { app: "foodapp", v: 2, exported: new Date().toISOString(), profile: state.profile, log: state.log, ex: state.ex, coach: state.coach };
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
   a.download = `foodapp-backup-${dateKey()}.json`; document.body.appendChild(a); a.click(); a.remove();
@@ -738,8 +824,9 @@ document.addEventListener("click", async e => {
   }
   else if (a === "clear") {
     if (!confirm("ลบบันทึกอาหารและออกกำลังกายทั้งหมดถาวร? (ไม่ลบโปรไฟล์) ย้อนกลับไม่ได้ — แนะนำ Export สำรองก่อน")) return;
-    state.log = {}; state.ex = {}; saveLog(); saveEx(); render(); toast("ลบแล้ว");
+    state.log = {}; state.ex = {}; state.coach = {}; saveLog(); saveEx(); persist(K.coach, state.coach); render(); toast("ลบแล้ว");
   }
+  else if (a === "coach") runCoach(state.date, false);
   else if (a === "export") exportData();
   else if (a === "import") { const inp = $("#fileImp"); inp.value = ""; inp.click(); }
   else if (a === "loadmodels") {
@@ -759,6 +846,8 @@ document.addEventListener("input", e => {
     state.profile[t.dataset.f] = t.dataset.f === "activity" ? num(t.value) : t.value;
     store.set(K.profile, state.profile);
     const s = $("#summary"); if (s) s.innerHTML = summaryHtml();
+  } else if (t.dataset.sc) {
+    state.settings[t.dataset.sc] = t.checked; store.set(K.settings, state.settings);
   } else if (t.dataset.s) {
     state.settings[t.dataset.s] = t.value.trim(); store.set(K.settings, state.settings);
   } else if (t.dataset.d && state.draft) {
@@ -782,7 +871,7 @@ $("#fileImp").addEventListener("change", async e => {
     const j = JSON.parse(await f.text());
     if (!j || j.app !== "foodapp" || typeof j.log !== "object") throw new Error("bad");
     if (!confirm("นำเข้าข้อมูลจากไฟล์สำรอง? ข้อมูลบันทึกอาหาร/ออกกำลังกายที่มีอยู่ในเครื่องนี้จะถูกแทนที่")) return;
-    state.log = j.log || {}; state.ex = j.ex || {};
+    state.log = j.log || {}; state.ex = j.ex || {}; state.coach = j.coach || {}; persist(K.coach, state.coach);
     if (j.profile) { state.profile = Object.assign({}, DEFAULT_PROFILE, j.profile); store.set(K.profile, state.profile); }
     saveLog(); saveEx(); render(); toast("นำเข้าข้อมูลแล้ว");
   } catch (err) { toast("ไฟล์สำรองไม่ถูกต้อง"); }
