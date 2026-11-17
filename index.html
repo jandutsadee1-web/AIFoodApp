@@ -2,6 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src https://generativelanguage.googleapis.com; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -647,8 +648,62 @@ function download(name, text, type) {
   a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
+/* ---- sanitize an imported backup: rebuild every record from known fields only ---- */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/, COACH_RE = /^((week|month):)?\d{4}-\d{2}-\d{2}$/;
+const sStr = (v, max) => (typeof v === "string" || typeof v === "number" ? String(v) : "").slice(0, max);
+const sId = v => { const s = sStr(v, 40); return /^[A-Za-z0-9_-]+$/.test(s) ? s : uid(); };
+const sTime = v => (/^\d{2}:\d{2}$/.test(v) ? v : "12:00");
+const sThumb = v => (typeof v === "string" && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length < 400000 ? v : "");
+const sNum = v => Math.max(0, num(v));
+const sItems = a => (Array.isArray(a) ? a : []).filter(i => i && typeof i === "object").slice(0, 50).map(i => ({ name: sStr(i.name, 200), portion: sStr(i.portion, 200), kcal: sNum(i.kcal), p: sNum(i.p), f: sNum(i.f), c: sNum(i.c), fib: sNum(i.fib), sug: sNum(i.sug), na: sNum(i.na) }));
+const sList = a => (Array.isArray(a) ? a : []).slice(0, 10).map(x => sStr(x, 500)).filter(Boolean);
+function sByDate(src, fn) {
+  const out = {};
+  if (src && typeof src === "object") Object.keys(src).forEach(d => {
+    if (!DATE_RE.test(d) || !Array.isArray(src[d])) return;
+    const rows = src[d].filter(x => x && typeof x === "object").slice(0, 100).map(fn);
+    if (rows.length) out[d] = rows;
+  });
+  return out;
+}
+function sanitizeBackup(j) {
+  const log = sByDate(j.log, m => ({ id: sId(m.id), time: sTime(m.time), type: MT[m.type] ? m.type : typeFromTime(sTime(m.time)), thumb: sThumb(m.thumb), items: sItems(m.items) }));
+  const ex = sByDate(j.ex, e => ({ id: sId(e.id), time: sTime(e.time), type: EXTYPE[e.type] ? e.type : "other", name: sStr(e.name, 200), minutes: r0(sNum(e.minutes)), kcal: r0(sNum(e.kcal)), detail: sStr(e.detail, 500), thumb: sThumb(e.thumb) }));
+  const coach = {}, body = {};
+  if (j.coach && typeof j.coach === "object") Object.keys(j.coach).forEach(k => {
+    const c = j.coach[k]; if (!COACH_RE.test(k) || !c || typeof c !== "object") return;
+    coach[k] = { sig: sStr(c.sig, 2000), at: sStr(c.at, 40), headline: sStr(c.headline, 500), score: clamp(r0(num(c.score)), 0, 100), good: sList(c.good), improve: sList(c.improve), next: sStr(c.next, 1000) };
+  });
+  if (j.body && typeof j.body === "object") Object.keys(j.body).forEach(d => {
+    const b = j.body[d]; if (!DATE_RE.test(d) || !b || typeof b !== "object") return;
+    const w = sNum(b.w), bf = sNum(b.bf); if (!w && !bf) return;
+    body[d] = { w: w || "", bf: bf || "" };
+  });
+  const fav = (Array.isArray(j.fav) ? j.fav : []).filter(f => f && typeof f === "object").slice(0, 200).map(f => ({ id: sId(f.id), name: sStr(f.name, 200), items: sItems(f.items) })).filter(f => f.items.length);
+  let profile = null;
+  if (j.profile && typeof j.profile === "object") {
+    const p = j.profile, n = k => (p[k] === "" || p[k] == null ? "" : sNum(p[k]));
+    profile = { sex: p.sex === "female" ? "female" : "male", age: n("age"), height: n("height"), weight: n("weight"), bf: n("bf"), targetBf: n("targetBf"), activity: sNum(p.activity) || DEFAULT_PROFILE.activity, tdeeOverride: n("tdeeOverride"), deficit: sNum(p.deficit) || DEFAULT_PROFILE.deficit, protPerKg: sNum(p.protPerKg) || DEFAULT_PROFILE.protPerKg };
+  }
+  return { log, ex, coach, body, fav, profile };
+}
+/* ---- backup reminder ---- */
+function backupDue() {
+  const s = state.settings, days = Object.keys(state.log).concat(Object.keys(state.ex), Object.keys(state.body)).filter(d => DATE_RE.test(d)).sort();
+  if (!days.length) return false;
+  const marks = [s.lastExport, s.backupAsk].filter(d => DATE_RE.test(d || "")).sort();
+  const since = marks.length ? marks[marks.length - 1] : days[0];
+  return since <= shiftDate(dateKey(), -7);
+}
+function backupCardHtml() {
+  if (!backupDue()) return "";
+  const le = state.settings.lastExport;
+  return `<div class="card"><b>💾 ถึงเวลาสำรองข้อมูล</b><p class="muted small" style="margin:6px 0">${DATE_RE.test(le || "") ? `สำรองล่าสุด ${esc(fmtShort(le))}` : "ยังไม่เคยสำรองข้อมูล"} — ข้อมูลอยู่ในเครื่องนี้เท่านั้น ถ้าลบแอปหรือเปลี่ยนเครื่องจะหาย เก็บไฟล์ไว้ใน OneDrive/ไฟล์</p>
+    <div class="grid2"><button class="btn primary" data-act="export">⬇️ สำรองตอนนี้</button><button class="btn" data-act="backuplater">ไว้ทีหลัง</button></div></div>`;
+}
 function exportData() {
-  const data = { app: "foodapp", v: 3, exported: new Date().toISOString(), profile: state.profile, log: state.log, ex: state.ex, coach: state.coach, body: state.body, fav: state.fav };
+  state.settings.lastExport = dateKey(); store.set(K.settings, state.settings);
+  const data ={ app: "foodapp", v: 3, exported: new Date().toISOString(), profile: state.profile, log: state.log, ex: state.ex, coach: state.coach, body: state.body, fav: state.fav };
   download(`foodapp-backup-${dateKey()}.json`, JSON.stringify(data), "application/json");
 }
 const csvCell = v => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -700,6 +755,7 @@ function renderToday() {
       <button class="icon-btn" data-act="day" data-d="-1" aria-label="วันก่อนหน้า">◀</button>
       <div style="text-align:center"><h1>${fmtDate(state.date)}</h1>${isToday ? '<span class="muted small">วันนี้</span>' : '<button class="btn ghost small" data-act="gotoday">กลับมาวันนี้</button>'}</div>
       <button class="icon-btn" data-act="day" data-d="1" aria-label="วันถัดไป">▶</button></div>`;
+  h += backupCardHtml();
   if (!t) {
     h += `<div class="card"><h2>ตั้งค่าเป้าหมายก่อน</h2><p class="muted">กรอกน้ำหนัก, %FAT (หรืออายุ+ส่วนสูง) ในแท็บโปรไฟล์ เพื่อให้แอปคำนวณ TDEE และเป้าหมายรายวัน</p>
       <button class="btn primary" data-act="tab" data-tab="profile">ไปที่โปรไฟล์</button></div>
@@ -1178,7 +1234,8 @@ document.addEventListener("click", async e => {
     if (!confirm("ลบบันทึกอาหารและออกกำลังกายทั้งหมดถาวร? (ไม่ลบโปรไฟล์ น้ำหนัก และเมนูประจำ) ย้อนกลับไม่ได้ — แนะนำสำรองก่อน")) return;
     state.log = {}; state.ex = {}; state.coach = {}; saveLog(); saveEx(); persist(K.coach, state.coach); render(); toast("ลบแล้ว");
   }
-  else if (a === "export") exportData();
+  else if (a === "export") { exportData(); render(); }
+  else if (a === "backuplater") { state.settings.backupAsk = dateKey(); store.set(K.settings, state.settings); render(); }
   else if (a === "csvdaily") download(`foodapp-daily-${dateKey()}.csv`, csvDaily(), "text/csv;charset=utf-8");
   else if (a === "csvitems") download(`foodapp-items-${dateKey()}.csv`, csvItems(), "text/csv;charset=utf-8");
   else if (a === "import") { const inp = $("#fileImp"); inp.value = ""; inp.click(); }
@@ -1232,9 +1289,10 @@ $("#fileImp").addEventListener("change", async e => {
     const j = JSON.parse(await f.text());
     if (!j || j.app !== "foodapp" || typeof j.log !== "object") throw new Error("bad");
     if (!confirm("นำเข้าข้อมูลจากไฟล์สำรอง? ข้อมูลในเครื่องนี้ (บันทึกอาหาร ออกกำลังกาย น้ำหนัก เมนูประจำ) จะถูกแทนที่")) return;
-    state.log = j.log || {}; state.ex = j.ex || {}; state.coach = j.coach || {}; state.body = j.body || {}; state.fav = Array.isArray(j.fav) ? j.fav : [];
+    const c = sanitizeBackup(j);
+    state.log = c.log; state.ex = c.ex; state.coach = c.coach; state.body = c.body; state.fav = c.fav;
     persist(K.coach, state.coach); persist(K.body, state.body); persist(K.fav, state.fav);
-    if (j.profile) { state.profile = Object.assign({}, DEFAULT_PROFILE, j.profile); store.set(K.profile, state.profile); }
+    if (c.profile) { state.profile = c.profile; store.set(K.profile, state.profile); }
     saveLog(); saveEx(); render(); toast("นำเข้าข้อมูลแล้ว");
   } catch (err) { toast("ไฟล์สำรองไม่ถูกต้อง"); }
 });
