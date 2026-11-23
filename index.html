@@ -119,6 +119,12 @@ details summary{cursor:pointer;padding:11px 2px;font-weight:600;font-size:.92rem
 .seg button.on{background:var(--surface);font-weight:700;box-shadow:var(--shadow)}
 .chart{width:100%;height:auto;display:block}
 .chart .bar{fill:var(--accent)} .chart .bar.over{fill:var(--warn)}
+.chart.pro .bar{fill:var(--p)} .chart.pro .bar.low{opacity:.35}
+.score{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:.93rem}
+.score:last-of-type{border-bottom:0}
+.score .muted{grid-column:2 / 4;font-size:.78rem;margin-top:-2px}
+details.rep{padding:0 14px;margin:0 0 12px}
+details.rep[open]{padding-bottom:12px}
 .chart .tgt{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 3}
 .chart text{fill:var(--muted);font-size:9px}
 .stack{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--surface2);margin:6px 0}
@@ -791,14 +797,15 @@ function renderToday() {
 }
 
 /* ============ render: reports ============ */
-function chartSvg(days, vals, target, range) {
+function chartSvg(days, vals, target, range, minMode) {   // minMode: เป้าเป็น "ขั้นต่ำ" (เช่น โปรตีน) — ถึงเป้า = สีเต็ม, ไม่ถึง = จาง
   const W = 340, H = 150, pl = 4, pr = 4, pt = 12, pb = 22, n = days.length, bw = (W - pl - pr) / n;
-  const max = Math.max(target || 0, ...vals, 500) * 1.12;
+  const max = Math.max(target || 0, ...vals, minMode ? 50 : 500) * 1.12;
   const y = v => pt + (H - pt - pb) * (1 - v / max);
-  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟแคลอรี่รายวัน">`;
+  let s = `<svg class="chart ${minMode ? "pro" : ""}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${minMode ? "กราฟโปรตีนรายวัน" : "กราฟแคลอรี่รายวัน"}">`;
   vals.forEach((v, i) => {
     const x = pl + i * bw + bw * 0.15, w = bw * 0.7, dt = parseKey(days[i]);
-    if (v > 0) s += `<rect class="bar ${target && v > target ? "over" : ""}" x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${w.toFixed(1)}" height="${(H - pb - y(v)).toFixed(1)}" rx="2"/>`;
+    const cls = minMode ? (target && v < target * 0.9 ? "low" : "") : (target && v > target ? "over" : "");
+    if (v > 0) s += `<rect class="bar ${cls}" x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${w.toFixed(1)}" height="${(H - pb - y(v)).toFixed(1)}" rx="2"/>`;
     const show = range === "week" || i === 0 || (i + 1) % 5 === 0;
     if (show) s += `<text x="${(x + w / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${range === "week" ? DAYS_S[dt.getDay()] : dt.getDate()}</text>`;
   });
@@ -859,12 +866,16 @@ function renderReport() {
     <div class="date-nav"><button class="icon-btn" data-act="rnav" data-d="-1" aria-label="ก่อนหน้า">◀</button>
       <div style="text-align:center"><b>${periodLabel(R.range, days)}</b><div class="muted small">บันทึกอาหาร ${n}/${days.length} วัน</div></div>
       <button class="icon-btn" data-act="rnav" data-d="1" aria-label="ถัดไป">▶</button></div>`;
-  if (!n && !ex.n) return h + `<div class="card empty">ยังไม่มีข้อมูลอาหาร/ออกกำลังกายในช่วงนี้</div>` + bodyCardHtml();
+  if (!n && !ex.n) return h + `<div class="card empty">ยังไม่มีข้อมูลอาหาร/ออกกำลังกายในช่วงนี้</div>` + bodyCardHtml() + tdeeCardHtml();
+  h += scoreCardHtml(days, t);
   h += `<div class="card"><h2>แคลอรี่รายวัน</h2>${chartSvg(days, vals, target, R.range)}
-    <div class="muted small">แท่งสีส้ม = เกินเป้าหมาย</div></div>
-    <div class="card" id="coachP">${coachPeriodHtml()}</div>`;
+    <div class="muted small">แท่งสีส้ม = เกินเป้าหมาย</div></div>`;
+  if (n) h += `<div class="card"><h2>โปรตีนรายวัน</h2>${chartSvg(days, days.map(d => dayTotals(d).p), t ? t.protein : 0, R.range, true)}
+    <div class="muted small">แท่งสีจาง = ได้โปรตีนไม่ถึง 90% ของเป้า${t ? ` (${r0(t.protein * 0.9)} g)` : ""}</div></div>`;
+  h += `<div class="card" id="coachP">${coachPeriodHtml()}</div>`;
+  h += bodyCardHtml() + tdeeCardHtml();
   if (n) {
-    h += `<div class="card"><h2>ค่าเฉลี่ยต่อวัน (เฉพาะวันที่บันทึก)</h2><div class="kv">
+    h += `<details class="rep"><summary>📊 ค่าเฉลี่ยต่อวัน · ${r0(avg("kcal"))} kcal · โปรตีน ${r0(avg("p"))} g</summary><div class="kv">
       <span>แคลอรี่</span><b>${r0(avg("kcal"))} kcal${target ? ` <span class="muted small">(เป้า ${target})</span>` : ""}</b>
       <span style="color:var(--p)">โปรตีน</span><b>${r0(avg("p"))} g${t ? ` <span class="muted small">(เป้า ${t.protein})</span>` : ""}</b>
       <span style="color:var(--f)">ไขมัน</span><b>${r0(avg("f"))} g${t ? ` <span class="muted small">(เป้า ${t.fat})</span>` : ""}</b>
@@ -872,25 +883,84 @@ function renderReport() {
       <span>ใยอาหาร</span><b>${r0(avg("fib"))} g</b><span>น้ำตาล</span><b>${r0(avg("sug"))} g</b><span>โซเดียม</span><b>${r0(avg("na"))} mg</b></div>
       <div class="sub">สัดส่วนพลังงานจากมาโคร</div>
       <div class="stack"><div style="width:${pk / ksum * 100}%;background:var(--p)"></div><div style="width:${fk / ksum * 100}%;background:var(--f)"></div><div style="width:${ck / ksum * 100}%;background:var(--c)"></div></div>
-      <div class="chips"><span class="chip p">โปรตีน ${r0(pk / ksum * 100)}%</span><span class="chip f">ไขมัน ${r0(fk / ksum * 100)}%</span><span class="chip c">คาร์บ ${r0(ck / ksum * 100)}%</span></div></div>
-    <div class="card"><h2>รวมทั้งช่วง</h2><div class="kv"><span>แคลอรี่รวม</span><b>${r0(tot.kcal)} kcal</b><span>โปรตีน / ไขมัน / คาร์บ</span><b>${r0(tot.p)} / ${r0(tot.f)} / ${r0(tot.c)} g</b></div>
-      ${t ? (() => { const gap = t.tdee * n - tot.kcal; return `<div class="notice">เทียบกับ TDEE (${r0(t.tdee)}) ใน ${n} วันที่บันทึก: ${gap >= 0 ? "ขาดดุลสะสม" : "เกินดุลสะสม"} <b>${r0(Math.abs(gap))} kcal</b> ≈ ไขมัน ${r1(Math.abs(gap) / 7700)} kg<br><span class="muted small">ประมาณการ ใช้ได้เมื่อบันทึกอาหารครบทุกมื้อ ควรเทียบกับน้ำหนัก/%FAT ที่วัดจริง</span></div>`; })() : ""}</div>`;
+      <div class="chips"><span class="chip p">โปรตีน ${r0(pk / ksum * 100)}%</span><span class="chip f">ไขมัน ${r0(fk / ksum * 100)}%</span><span class="chip c">คาร์บ ${r0(ck / ksum * 100)}%</span></div>
+      <div class="muted small" style="margin-top:6px">ค่าเฉลี่ยคิดเฉพาะ ${n} วันที่บันทึกอาหาร</div>
+      <div class="sub">รวมทั้งช่วง</div><div class="kv"><span>แคลอรี่รวม</span><b>${r0(tot.kcal)} kcal</b><span>โปรตีน / ไขมัน / คาร์บ</span><b>${r0(tot.p)} / ${r0(tot.f)} / ${r0(tot.c)} g</b></div>
+      ${t ? (() => { const gap = t.tdee * n - tot.kcal; return `<div class="notice">เทียบกับ TDEE (${r0(t.tdee)}) ใน ${n} วันที่บันทึก: ${gap >= 0 ? "ขาดดุลสะสม" : "เกินดุลสะสม"} <b>${r0(Math.abs(gap))} kcal</b> ≈ ไขมัน ${r1(Math.abs(gap) / 7700)} kg<br><span class="muted small">ประมาณการ ใช้ได้เมื่อบันทึกอาหารครบทุกมื้อ ควรเทียบกับน้ำหนัก/%FAT ที่วัดจริง</span></div>`; })() : ""}</details>`;
   }
-  h += `<div class="card"><h2>ออกกำลังกาย</h2>${ex.n ? `<div class="kv">
+  h += `<details class="rep"><summary>🏃 ออกกำลังกาย · ${ex.n ? `${exDays} วัน · ${r0(ex.min)} นาที` : "ยังไม่มีบันทึก"}</summary>${ex.n ? `<div class="kv">
       <span>ทั้งหมด</span><b>${ex.n} ครั้ง · ${exDays} วัน · ${r0(ex.min)} นาที</b>
       <span>🏃 คาร์ดิโอ</span><b>${ex.cn} ครั้ง · ${r0(ex.cmin)} นาที</b>
       <span>🏋️ เวทเทรนนิ่ง</span><b>${ex.wn} ครั้ง · ${r0(ex.wmin)} นาที</b>
-      <span>แคลอรี่เผาผลาญ (ประมาณ)</span><b>${r0(ex.kcal)} kcal</b></div>` : `<div class="muted">ยังไม่มีบันทึกออกกำลังกายในช่วงนี้</div>`}</div>`;
-  h += bodyCardHtml();
+      <span>แคลอรี่เผาผลาญ (ประมาณ)</span><b>${r0(ex.kcal)} kcal</b></div>` : `<div class="muted">ยังไม่มีบันทึกออกกำลังกายในช่วงนี้</div>`}</details>`;
   const tk = dateKey();
-  h += `<div class="card"><h2>รายวัน <span class="muted small" style="font-weight:400">(แตะเพื่อดูรายละเอียด)</span></h2>
+  h += `<details class="rep"><summary>📅 ตารางรายวัน (แตะวันเพื่อดูรายละเอียด)</summary>
     <div class="drow head"><span>วัน</span><span>kcal</span><span>P</span><span>F</span><span>C</span><span>ออกกำลัง</span></div>`;
   days.forEach(d => {
     const dt = parseKey(d), tt = dayTotals(d), e = exTotals(d), has = (state.log[d] || []).length;
     h += `<button class="drow ${d === tk ? "today" : ""}" data-act="godate" data-date="${d}"><span>${DAYS_S[dt.getDay()]} ${dt.getDate()}</span>
       <span>${has ? r0(tt.kcal) : "–"}</span><span>${has ? r0(tt.p) : "–"}</span><span>${has ? r0(tt.f) : "–"}</span><span>${has ? r0(tt.c) : "–"}</span><span>${e.n ? `${e.cn ? "🏃" : ""}${e.wn ? "🏋️" : ""}${e.n && !e.cn && !e.wn ? "⚡" : ""} ${r0(e.min)}′` : "–"}</span></button>`;
   });
-  return h + `</div>`;
+  return h + `</details>`;
+}
+
+/* ---- scorecard (traffic light) ---- */
+const light = r => r >= 0.8 ? "🟢" : r >= 0.5 ? "🟡" : "🔴";
+function scoreCardHtml(days, t) {
+  const tk = dateKey(), past = days.filter(d => d <= tk);
+  if (!past.length) return "";
+  const judged = past.filter(d => d < tk && (state.log[d] || []).length);   // ไม่นับวันนี้เพราะวันยังไม่จบ
+  const logged = past.filter(d => (state.log[d] || []).length).length;
+  const rows = [];
+  const row = (dot, label, val, note) => rows.push(`<div class="score"><span>${dot}</span><span>${label}</span><b>${val}</b>${note ? `<span class="muted">${note}</span>` : ""}</div>`);
+  if (t && judged.length) {
+    const floor = t.bmr ? t.bmr * 0.9 : t.kcal * 0.75;
+    const okK = judged.filter(d => { const k = dayTotals(d).kcal; return k <= t.kcal * 1.05 && k >= floor; }).length;
+    const lowK = judged.filter(d => dayTotals(d).kcal < floor).length;
+    row(light(okK / judged.length), "แคลอรี่อยู่ในเป้า", `${okK}/${judged.length} วัน`, `ไม่เกิน ${r0(t.kcal * 1.05)} kcal${lowK ? ` · กินน้อยเกินไป ${lowK} วัน (ต่ำกว่า ${r0(floor)})` : ""}`);
+    const okP = judged.filter(d => dayTotals(d).p >= t.protein * 0.9).length;
+    row(light(okP / judged.length), "โปรตีนถึงเป้า", `${okP}/${judged.length} วัน`, `อย่างน้อย ${r0(t.protein * 0.9)} g/วัน`);
+  }
+  const exDays = past.filter(d => (state.ex[d] || []).length).length, exGoal = Math.max(1, Math.round(past.length * 3 / 7));
+  row(light(exDays / exGoal), "วันที่ออกกำลังกาย", `${exDays} วัน`, `เป้า ~3 วัน/สัปดาห์ (${exGoal} วันในช่วงนี้)`);
+  row(light(logged / past.length), "วันที่บันทึกอาหาร", `${logged}/${past.length} วัน`, "บันทึกครบ ค่าสรุปและโค้ชจะแม่นขึ้น");
+  const ws = bodyEntries().filter(e => e.w > 0 && e.d >= days[0] && e.d <= days[days.length - 1]);
+  if (ws.length >= 2) {
+    const a = ws[0], b = ws[ws.length - 1], span = Math.max(1, (parseKey(b.d) - parseKey(a.d)) / 864e5), ch = b.w - a.w, perW = ch / span * 7;
+    const fast = perW < -b.w * 0.01, dot = fast ? "🟡" : perW <= -0.2 ? "🟢" : perW <= 0.2 ? "🟡" : "🔴";
+    row(dot, "น้ำหนัก", `${sgn(ch)} kg`, `${sgn(perW)} kg/สัปดาห์${fast ? " · ลดเร็วเกิน 1%/สัปดาห์ อาจเสียกล้ามเนื้อ" : perW <= -0.2 ? " · กำลังดี" : perW <= 0.2 ? " · ทรงตัว" : " · เพิ่มขึ้น"}`);
+  } else row("⚪", "น้ำหนัก", "–", "ชั่งอย่างน้อย 2 ครั้งในช่วงนี้เพื่อดูแนวโน้ม");
+  return `<div class="card"><h2>สรุปแบบเร็ว</h2>${rows.join("")}<div class="muted small" style="margin-top:6px">🟢 ดี · 🟡 พอใช้ · 🔴 ควรปรับ · แคลอรี่/โปรตีนไม่นับวันนี้เพราะวันยังไม่จบ</div></div>`;
+}
+
+/* ---- real TDEE from weight trend + logged intake (last 28 complete days) ---- */
+function realTdee() {
+  const tk = dateKey(), from = shiftDate(tk, -28);
+  const L = []; for (let d = from; d < tk; d = shiftDate(d, 1)) if ((state.log[d] || []).length) L.push(d);
+  const ws = bodyEntries().filter(e => e.w > 0 && e.d >= from && e.d <= tk);
+  const span = ws.length ? Math.round((parseKey(ws[ws.length - 1].d) - parseKey(ws[0].d)) / 864e5) : 0;
+  const need = [];
+  if (ws.length < 3 || span < 14) need.push(`ชั่งน้ำหนักอย่างน้อย 3 ครั้ง ห่างกันรวม 14 วันขึ้นไป (ตอนนี้ ${ws.length} ครั้ง, ${span} วัน)`);
+  if (L.length < 14) need.push(`บันทึกอาหารครบทั้งวันอย่างน้อย 14 วัน (ตอนนี้ ${L.length} วัน)`);
+  if (need.length) return { need };
+  const t0 = parseKey(ws[0].d).getTime(), xs = ws.map(e => (parseKey(e.d).getTime() - t0) / 864e5), ys = ws.map(e => e.w);
+  const mx = xs.reduce((a, b) => a + b, 0) / xs.length, my = ys.reduce((a, b) => a + b, 0) / ys.length;
+  const slope = xs.reduce((a, x, i) => a + (x - mx) * (ys[i] - my), 0) / (xs.reduce((a, x) => a + (x - mx) ** 2, 0) || 1);   // kg/วัน
+  const avg = L.reduce((a, d) => a + dayTotals(d).kcal, 0) / L.length;
+  return { tdee: r0(avg - slope * 7700), avg: r0(avg), perWeek: slope * 7, nW: ws.length, nL: L.length };
+}
+function tdeeCardHtml() {
+  const t = compute(state.profile), r = realTdee();
+  let h = `<div class="card"><h2>🔥 TDEE จริงจากข้อมูลของคุณ</h2>`;
+  if (r.need) return h + `<p class="muted small" style="margin:6px 0">คำนวณจากน้ำหนักที่เปลี่ยนจริงเทียบกับแคลอรี่ที่บันทึกใน 28 วันล่าสุด ซึ่งแม่นกว่าสูตร และชดเชยความคลาดเคลื่อนของ AI ไปในตัว ยังต้องการข้อมูลเพิ่ม:</p><ul class="small">${r.need.map(x => `<li>${x}</li>`).join("")}</ul></div>`;
+  h += `<div class="kv"><span>กินเฉลี่ย (${r.nL} วันที่บันทึก)</span><b>${r.avg} kcal</b><span>น้ำหนักเปลี่ยน (${r.nW} ครั้ง)</span><b>${sgn(r.perWeek)} kg/สัปดาห์</b>
+    <span>TDEE จริง (ประมาณ)</span><b>${r.tdee} kcal</b>${t ? `<span>TDEE ที่ใช้อยู่</span><b>${r0(t.tdee)} kcal</b>` : ""}</div>`;
+  const weird = t && t.bmr && (r.tdee < t.bmr * 1.05 || r.tdee > t.bmr * 2.4);
+  if (weird) return h + `<div class="notice warn small">ค่านี้ดูผิดปกติเมื่อเทียบกับ BMR (${r0(t.bmr)} kcal) มักเกิดจากบันทึกอาหารไม่ครบทุกมื้อ หรือน้ำหนักแกว่งจากน้ำในร่างกาย ยังไม่แนะนำให้ใช้ค่านี้</div></div>`;
+  if (t && Math.abs(r.tdee - t.tdee) < 100) return h + `<div class="notice small">ใกล้เคียงกับค่าที่ใช้อยู่ (ต่างไม่ถึง 100 kcal) ไม่ต้องปรับ</div></div>`;
+  const newK = t ? r0(r.tdee * (1 - t.deficit)) : 0;
+  return h + `<div class="notice small">${t ? `ถ้าใช้ค่านี้ เป้าแคลอรี่จะเปลี่ยนจาก ${t.kcal} เป็น ≈ <b>${newK} kcal/วัน</b> (ลด ${r0(t.deficit * 100)}% เท่าเดิม)<br>` : ""}<span class="muted">ค่านี้ถือว่าวันที่บันทึกคือกินครบทุกมื้อ ถ้ามักลืมบันทึกบางมื้อ ค่าจริงจะสูงกว่านี้</span></div>
+    <button class="btn block primary" data-act="usetdee" data-v="${r.tdee}">ใช้ ${r.tdee} kcal เป็น TDEE</button></div>`;
 }
 
 /* ============ render: profile ============ */
@@ -991,6 +1061,8 @@ function renderModal() {
       ${d.notes ? `<div class="notice small">${esc(d.notes)}${d.confidence ? " · ความมั่นใจ: " + esc(d.confidence) : ""}</div>` : ""}
       ${d.sources && d.sources.length ? `<div class="notice small">🔎 ค้นข้อมูลอ้างอิงจากเว็บแล้ว: ${d.sources.map(s => `<a href="${esc(s.uri)}" target="_blank" rel="noopener">${esc(s.title)}</a>`).join(" · ")}</div>` : (d.webTried ? `<div class="notice small">ค้นข้อมูลอ้างอิงจากเว็บไม่สำเร็จหรือไม่พบแหล่งที่ใช้ได้ จึงประเมินจากรูป/คำอธิบายอย่างเดียว</div>` : "")}
       ${d.range ? `<div class="notice small">ช่วงที่เป็นไปได้ของมื้อนี้ ≈ <b>${d.range.low}–${d.range.high} kcal</b> · แอปใช้ค่ากลาง แก้ตัวเลขด้านล่างได้ถ้าคุณรู้ปริมาณจริง</div>` : ""}`;
+  const fresh = !d.id && !d.status && !d.error && !d.notes && (d.kind === "ex" ? !d.name : !(d.items || []).some(i => i.name));
+  const readyHint = fresh && shots.length ? `<div class="notice small">📝 ใส่คำอธิบายเพิ่ม หรือ ＋ เพิ่มรูปให้ครบก่อน แล้วกดปุ่มด้านล่างเพื่อให้ AI วิเคราะห์</div>` : "";
   const buttons = `<div class="row"><button class="btn ghost" data-act="cancel">ยกเลิก</button><button class="btn primary grow" data-act="save">บันทึก</button></div>`;
   let body;
   if (d.kind === "choose") body = chooseHtml();
@@ -1007,7 +1079,8 @@ function renderModal() {
   } else if (d.kind === "ex") {
     body = head(d.id ? "แก้ไขการออกกำลังกาย" : "บันทึกการออกกำลังกาย") + `
       <label class="fld" style="margin-top:10px">คำอธิบาย (เช่น "วิ่ง 30 นาที 5 กม." หรือ "เวทหน้าอก: Bench 4x10 60kg, Incline DB 3x12 20kg")<textarea data-d="hint" placeholder="ไม่ใส่ก็ได้ ถ้ามีรูป">${esc(d.hint || "")}</textarea></label>
-      <button class="btn block" data-act="analyze" ${d.status === "analyzing" ? "disabled" : ""} style="margin-bottom:14px">🔄 ให้ AI สรุป/ประเมินแคลอรี่</button>
+      ${readyHint}
+      <button class="btn block ${!d.name ? "primary" : ""}" data-act="analyze" ${d.status === "analyzing" ? "disabled" : ""} style="margin-bottom:14px">${d.name ? "🔄 วิเคราะห์ใหม่" : "🤖 ให้ AI สรุป/ประเมินแคลอรี่"}</button>
       <label class="fld">ประเภท<select data-d="type">${Object.entries(EXTYPE).map(([k, v]) => `<option value="${k}" ${d.type === k ? "selected" : ""}>${v[0]} ${v[1]}</option>`).join("")}</select></label>
       <label class="fld">ชื่อกิจกรรม<input data-d="name" placeholder="เช่น วิ่งลู่วิ่ง / เวทหน้าอก" value="${esc(d.name)}"></label>
       <div class="grid2"><label class="fld">เวลา (นาที)<input data-d="minutes" type="number" inputmode="decimal" value="${esc(d.minutes || "")}"></label>
@@ -1018,7 +1091,8 @@ function renderModal() {
     const tot = mealTotals(d), isLabel = d.mode === "label";
     body = head(d.id ? "แก้ไขมื้ออาหาร" : isLabel ? "บันทึกจากฉลากโภชนาการ" : "บันทึกมื้ออาหาร") + `
       <label class="fld" style="margin-top:10px">${isLabel ? 'กินไปเท่าไหร่ (เช่น "ทั้งกล่อง" "ครึ่งซอง" "2 หน่วยบริโภค") ไม่ใส่ = 1 หน่วยบริโภค' : 'คำอธิบายเพิ่มเติมให้ AI (เช่น "ข้าวผัดกะเพราไก่ ไข่ดาว ไม่ใส่น้ำตาล" หรือ "กินครึ่งจาน")'}<textarea data-d="hint" placeholder="ไม่ใส่ก็ได้">${esc(d.hint || "")}</textarea></label>
-      <button class="btn block" data-act="analyze" ${d.status === "analyzing" ? "disabled" : ""} style="margin-bottom:14px">🔄 ${d.items.some(i => i.name) ? "วิเคราะห์ใหม่" : "ให้ AI วิเคราะห์"}</button>
+      ${readyHint}
+      <button class="btn block ${d.items.some(i => i.name) ? "" : "primary"}" data-act="analyze" ${d.status === "analyzing" ? "disabled" : ""} style="margin-bottom:14px">${d.items.some(i => i.name) ? "🔄 วิเคราะห์ใหม่" : "🤖 ให้ AI วิเคราะห์"}</button>
       <h2>รายการอาหาร</h2>
       ${d.items.map((it, i) => `<div class="item">
         <div class="row"><div class="grow"><input data-i="${i}" data-k="name" placeholder="ชื่ออาหาร" value="${esc(it.name)}" aria-label="ชื่ออาหาร"></div>
@@ -1118,7 +1192,7 @@ async function onFiles(fileList) {
       cur.images = cur.images.concat(bigs.slice(0, room));
       if (!cur.thumb) cur.thumb = thumb;
       cur.error = ""; renderModal();
-      toast(bigs.length > room ? `ใส่ได้สูงสุด ${MAX_IMG} รูป · กด "วิเคราะห์ใหม่" เพื่อให้ AI ดูทุกรูป` : 'เพิ่มรูปแล้ว กด "วิเคราะห์ใหม่" เพื่อให้ AI ดูทุกรูป');
+      toast(bigs.length > room ? `ใส่ได้สูงสุด ${MAX_IMG} รูป` : "เพิ่มรูปแล้ว · กดปุ่มวิเคราะห์เมื่อพร้อม");
       return;
     }
     const kind = mode === "ex" ? "ex" : "food";
@@ -1127,7 +1201,8 @@ async function onFiles(fileList) {
       if (kind === "food") state.draft.items = [blankItem()];
       state.draft.error = "ยังไม่ได้ใส่ Gemini API key (แท็บโปรไฟล์) — กรอกเองได้ หรือใส่ key แล้วกด 'ให้ AI วิเคราะห์'"; renderModal(); return;
     }
-    runAnalysis();
+    // ไม่วิเคราะห์อัตโนมัติ: รอผู้ใช้เพิ่มรูป/คำอธิบายแล้วกดปุ่มวิเคราะห์เอง
+    const ta = document.querySelector('#modal textarea[data-d="hint"]'); if (ta) try { ta.focus({ preventScroll: true }); } catch (e) {}
   } catch (e) { toast(e.message); }
 }
 function saveDraft() {
@@ -1235,6 +1310,11 @@ document.addEventListener("click", async e => {
     state.log = {}; state.ex = {}; state.coach = {}; saveLog(); saveEx(); persist(K.coach, state.coach); render(); toast("ลบแล้ว");
   }
   else if (a === "export") { exportData(); render(); }
+  else if (a === "usetdee") {
+    const v = r0(num(t.dataset.v)); if (v < 800 || v > 6000) return;
+    if (!confirm(`ตั้ง TDEE เป็น ${v} kcal? (แก้หรือลบได้ที่แท็บโปรไฟล์ ช่อง "TDEE จากเครื่องชั่ง/ที่วัดเอง")`)) return;
+    state.profile.tdeeOverride = v; store.set(K.profile, state.profile); render(); toast(`ตั้ง TDEE เป็น ${v} kcal แล้ว · เป้าแคลอรี่อัปเดตแล้ว`);
+  }
   else if (a === "backuplater") { state.settings.backupAsk = dateKey(); store.set(K.settings, state.settings); render(); }
   else if (a === "csvdaily") download(`foodapp-daily-${dateKey()}.csv`, csvDaily(), "text/csv;charset=utf-8");
   else if (a === "csvitems") download(`foodapp-items-${dateKey()}.csv`, csvItems(), "text/csv;charset=utf-8");
